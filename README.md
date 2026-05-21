@@ -12,8 +12,27 @@ Tunza is a modern, feature-rich local audio player built with Flutter. It focuse
 - Smart Playlists: Automatically tracks and organizes music into Favorites, Recently Added, Last Played, and Most Played lists.
 - Background Playback: Uninterrupted music playback with system notification controls.
 - Seamless Navigation: Smooth swipable tabs to navigate through Library, Playlists, Artists, and Albums.
-- Fullscreen Player: Includes synchronized scrolling lyrics, a visualizer, and intuitive media controls.
+- Fullscreen Player: Includes a visualizer, intuitive media controls, and synchronized scrolling lyrics (coming soon).
 - Search Functionality: Easily find tracks, artists, or albums within the local library.
+
+## What's New
+
+- **Track Options Menu**: Replaced the quick-favorite icon with a modern 3-dot "More Options" menu. It features a sleek modal bottom sheet with quick actions (Play Next, Add to Queue, Go to Album/Artist, etc.).
+- **Smooth Audio Transitions**: Implemented a 150ms fade-in and fade-out audio transition when toggling play and pause to eliminate abrupt audio clipping or popping sounds.
+- **Refined Player UI**: The duration control slider now elegantly spans the full horizontal width, aligning perfectly with the track duration timestamps.
+- **UI Layout Enhancements**: The navigation filter pills (Songs, Playlists, Artists, Albums) have been upgraded to evenly fill the horizontal space, perfectly matching the search bar width.
+- **Mini Player Upgrade**: Added a "Skip Previous" button to the persistent mini-player for easier navigation.
+- **Default Playback State**: "Repeat All" is now seamlessly enabled by default when the application starts.
+- **User Custom Playlists**: Added the ability to create new custom playlists directly from the Playlists tab or the track options menu. Tracks can now be seamlessly added to these user-defined playlists.
+- **Virtual Metadata Editing**: Users can now edit a track's Title, Artist, and Album metadata safely from the track options menu. Changes are applied virtually within the app without altering the original audio files.
+- **Image Picker Integration**: Users can now set custom cover images from the device gallery for both their created playlists and as virtual overrides for track album art.
+- **Track Deletion**: A new "Delete from device" option was added to the track options menu, allowing users to physically remove unwanted audio files from their local storage.
+- **Audio Transition Fixes**: Completely revamped track transition logic with smooth crossfading, preventing audio crackling/buzzing when rapidly switching tracks. Also implemented a robust fallback synchronization system to guarantee the Now Playing UI and the core audio engine always stay in perfect sync, even when track loading is abruptly aborted during spam taps.
+- **Enhanced Navigation UX**: Switched tab interactions to utilize smooth sliding animations instead of abrupt page jumps, and streamlined the Full-Screen Player interface by removing redundant option buttons.
+- **High-Resolution Artwork**: The Now Playing screen now dynamically fetches high-resolution album artwork, eliminating blurry or pixelated cover images.
+- **Spotify-like Dynamic Backgrounds**: Both the Mini Player and the Full-Screen Now Playing UI now adapt their background colors and gradients based on the dominant color extracted from the currently playing track's artwork.
+- **Interactive Drag Gestures**: Replaced static tap-to-open mechanics with smooth, physics-based vertical drag gestures. Users can now seamlessly drag the Mini Player up to reveal the Now Playing screen, and drag down to dismiss it.
+- **Polished UI Details**: Upgraded global touch feedback (splash/ripple effects) across all list items to feature rounded corners, matching the app's modern aesthetic.
 
 ## Project Structure
 
