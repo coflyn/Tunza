@@ -44,7 +44,8 @@ dependencies:
   shared_preferences: ^2.5.5
   palette_generator: ^0.3.3+7
   image_picker: ^1.2.2
-
+  audio_session: ^0.2.3
+  url_launcher: ^6.3.2
 dev_dependencies:
   flutter_test:
     sdk: flutter

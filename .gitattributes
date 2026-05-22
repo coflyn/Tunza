@@ -1,0 +1,7 @@
+# Ignore generated platform code from language statistics
+linux/* linguist-vendored
+macos/* linguist-vendored
+windows/* linguist-vendored
+ios/* linguist-vendored
+android/* linguist-vendored
+web/* linguist-vendored

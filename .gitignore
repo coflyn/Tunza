@@ -62,3 +62,7 @@ ios/Flutter/flutter_assets/
 ios/Flutter/flutter_export_environment.sh
 ios/Pods/
 .symlinks/
+
+# Ignore Gradle build files
+android/build/
+android/.gradle/
