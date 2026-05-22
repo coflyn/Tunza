@@ -17,6 +17,28 @@ Tunza is a modern, feature-rich local audio player built with Flutter. It focuse
 
 ## What's New
 
+- **Full-Screen Detail View**: Upgraded Albums, Artists, and Playlists to use a dedicated, Spotify-style full-screen interface instead of inline lists.
+- **Dynamic Adaptive Backgrounds**: Integrated `palette_generator` to dynamically extract the dominant color from album covers, seamlessly blending it into a smooth background gradient for the new detail views.
+- **Fluid Gestures & Animations**: Added a smooth slide-up entry animation for the detail view and introduced an intuitive swipe-down gesture on the artwork to instantly close the screen.
+- **Dedicated Shuffle Play**: Implemented a standalone "Shuffle Play" action button within the detail view that instantly randomizes the queue and starts playback without forcing the global music control's shuffle state on.
+- **Seamless Navigation State**: Enhanced tab navigation to retain the `PageView` scroll state securely by dynamically locking horizontal swiping while inside a detail view, avoiding UI rebuilds.
+- **Overlay Rendering Precision**: Detail views now render as standalone UI layers over the static main menu, preventing visual overlap. Added a 100% opaque solid backdrop layer underneath the dynamic gradient to completely mask the main UI during the slide animation.
+- **Playlist Performance Optimization**: Drastically improved animation frame rates and eliminated load-lag when opening massive custom playlists by converting O(N²) array lookups into rapid O(N) Set lookups.
+- **Refined Detail Aesthetics**: Replaced distorted stacked circular playlist artwork with standard 220x220 square covers perfectly centered with added top-clearance to beautifully accommodate mobile notches and timestamps.
+- **Accurate Play Statistics**: Fixed an issue where the app's boot sequence would falsely inflate a track's total play count and manipulate the "Last Played" playlist simply by loading the previous session's track into memory.
+- **Detail View 3-Dot Options**: Introduced a contextual top-right options menu inside the Detail View, empowering users to easily "Play Next" or "Add to Queue" the entire Album, Artist, or Playlist at once.
+- **Advanced Multi-Select Playlist Management**: You can now tap "Add Songs" inside any custom playlist to bulk-add from a full library checklist, or tap "Add to Playlist" from any Album/Artist view to cherry-pick specific tracks to add to your custom mix.
+- **Custom Playlist Management**: Directly from the new Detail View options menu, users can now gracefully Rename, Edit Covers, and Delete their custom-built playlists, seamlessly updating across the entire app state and shared preferences.
+- **Dynamic Z-Index Layouts**: Restructured the root Stack hierarchy so the Mini Player always beautifully renders above the sliding Detail View overlay without obscuring the bottom of long song lists, solving overlap issues.
+- **Detailed Play Statistics**: The "Most Played" playlist now renders the exact global play count next to each track's subtitle for deeper insight.
+- **Extreme UI Performance Optimization**: Eliminated out-of-memory crashes and scrolling lag by universally limiting high-res image decoding to a 600px width buffer, sharing identical cache keys across the entire application interface.
+- **System Back Button Interception**: Implemented a global `PopScope` that gracefully intercepts native Android back-button events, ensuring that open overlays (Lyrics, Full Screen Player, Detail Views) close sequentially instead of abruptly exiting the app.
+- **Palette Generator Acceleration**: Supercharged the dominant color extraction algorithm by constraining its scanning region to a precise 100x100 pixel grid, eliminating UI freezing when sliding open playlists with heavy custom covers.
+- **Instant Cache Invalidation**: Overhauled the detail view rendering pipeline so modifying a track's metadata instantly clears the cache and rebuilds standard playlists (like "Recently Added") with their newly assigned cover art.
+- **Glassmorphism Mini Player Scrolling**: Re-architected the main menu layout to remove rigid bounding boxes, allowing track lists and playlists to flow dynamically underneath the semi-transparent mini player.
+
+## Previous Updates
+
 - **Track Options Menu**: Replaced the quick-favorite icon with a modern 3-dot "More Options" menu. It features a sleek modal bottom sheet with quick actions (Play Next, Add to Queue, Go to Album/Artist, etc.).
 - **Smooth Audio Transitions**: Implemented a 150ms fade-in and fade-out audio transition when toggling play and pause to eliminate abrupt audio clipping or popping sounds.
 - **Refined Player UI**: The duration control slider now elegantly spans the full horizontal width, aligning perfectly with the track duration timestamps.

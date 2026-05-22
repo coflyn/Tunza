@@ -148,9 +148,17 @@ class _MainScreenState extends State<MainScreen> {
   ProcessingState _processingState = ProcessingState.idle;
   double? _dragValue;
   Color? _dominantColor;
+  Future<Color?>? _detailColorFuture;
   int _fadeSessionId = 0;
   double _playerDragOffset = 0.0;
   bool _isDraggingPlayer = false;
+  double _detailDragOffset = 0.0;
+  bool _isDraggingDetail = false;
+
+  Widget? _lastDetailView;
+  String? _cachedDetailKey;
+  List<Track>? _cachedDetailSongs;
+  Widget? _cachedDetailImage;
 
   @override
   void initState() {
@@ -158,6 +166,168 @@ class _MainScreenState extends State<MainScreen> {
     _pageController = PageController();
     _requestPermissionAndScan();
     _setupAudioStreams();
+  }
+
+  Future<Color?> _getDetailColor(Track? track, {String? playlistName}) async {
+    ImageProvider? provider;
+    if (playlistName != null && _playlistCovers.containsKey(playlistName)) {
+      provider = ResizeImage(FileImage(File(_playlistCovers[playlistName]!)), width: 600);
+    } else if (track != null) {
+      final customPath = _metadataOverrides[track.id]?['coverPath'];
+      if (customPath != null) {
+        provider = ResizeImage(FileImage(File(customPath)), width: 600);
+      } else {
+        final artwork = await _audioQuery.queryArtwork(
+          int.parse(track.id),
+          ArtworkType.AUDIO,
+          size: 200,
+        );
+        if (artwork != null) provider = MemoryImage(artwork);
+      }
+    }
+
+    if (provider != null) {
+      final palette = await PaletteGenerator.fromImageProvider(
+        provider,
+        size: const Size(100, 100),
+      );
+      return palette.dominantColor?.color ??
+          palette.vibrantColor?.color ??
+          palette.mutedColor?.color;
+    }
+    return null;
+  }
+
+  Widget _getActiveDetailView() {
+    String? baseName =
+        _selectedPlaylistDetail ??
+        _selectedArtistDetail ??
+        _selectedAlbumDetail;
+    String? type = _selectedPlaylistDetail != null
+        ? 'Playlist'
+        : _selectedArtistDetail != null
+        ? 'Artist'
+        : _selectedAlbumDetail != null
+        ? 'Album'
+        : null;
+
+    if (baseName == null || type == null) {
+      return _lastDetailView ?? const SizedBox.shrink();
+    }
+
+    String currentKey = "${baseName}_${_searchQuery}_$type";
+
+    if (_cachedDetailKey != currentKey ||
+        _cachedDetailSongs == null ||
+        _cachedDetailImage == null) {
+      _cachedDetailKey = currentKey;
+      List<Track> pSongs = [];
+      Widget? imageWidget;
+
+      if (type == 'Playlist') {
+        if (baseName == 'Favourites') {
+          pSongs = _allTracks
+              .where((t) => _favoriteTrackIds.contains(t.id))
+              .toList();
+        } else if (baseName == 'Recently Added') {
+          pSongs = List.from(_allTracks);
+        } else if (baseName == 'Last Played') {
+          pSongs = _lastPlayedTrackIds
+              .map(
+                (id) => _allTracks.firstWhere(
+                  (t) => t.id == id,
+                  orElse: () => _allTracks[0],
+                ),
+              )
+              .where((t) => _lastPlayedTrackIds.contains(t.id))
+              .toList();
+        } else if (baseName == 'Most Played') {
+          pSongs = List.from(_allTracks);
+          pSongs.sort(
+            (a, b) =>
+                (_playCounts[b.id] ?? 0).compareTo(_playCounts[a.id] ?? 0),
+          );
+        } else if (_userPlaylists.containsKey(baseName)) {
+          final trackIds = _userPlaylists[baseName]!.toSet();
+          pSongs = _allTracks.where((t) => trackIds.contains(t.id)).toList();
+        }
+
+        if (_playlistCovers.containsKey(baseName)) {
+          imageWidget = ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Image(
+              image: ResizeImage(FileImage(File(_playlistCovers[baseName]!)), width: 600),
+              fit: BoxFit.cover,
+              width: 220,
+              height: 220,
+            ),
+          );
+        } else {
+          Color color = Colors.grey;
+          IconData icon = Icons.queue_music;
+          if (baseName == 'Favourites') {
+            color = const Color(0xFFE91E63);
+            icon = Icons.favorite;
+          } else if (baseName == 'Recently Added') {
+            color = const Color(0xFF2196F3);
+            icon = Icons.new_releases;
+          } else if (baseName == 'Last Played') {
+            color = const Color(0xFFFF9800);
+            icon = Icons.history;
+          } else if (baseName == 'Most Played') {
+            color = const Color(0xFFF44336);
+            icon = Icons.local_fire_department;
+          } else if (_userPlaylists.containsKey(baseName)) {
+            color = const Color(0xFF9C27B0);
+            icon = Icons.queue_music;
+          }
+
+          imageWidget = Container(
+            width: 220,
+            height: 220,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFF0A0A0A), width: 2),
+            ),
+            child: pSongs.isNotEmpty
+                ? _buildTrackArtwork(pSongs.first, size: 220, radius: 10)
+                : Icon(icon, size: 80, color: color),
+          );
+        }
+      } else if (type == 'Artist') {
+        pSongs = _allTracks.where((t) => t.artist == baseName).toList();
+        imageWidget = pSongs.isNotEmpty
+            ? _buildTrackArtwork(pSongs.first, size: 220, radius: 16)
+            : const SizedBox(width: 220, height: 220);
+      } else if (type == 'Album') {
+        pSongs = _allTracks.where((t) => t.album == baseName).toList();
+        imageWidget = pSongs.isNotEmpty
+            ? _buildTrackArtwork(pSongs.first, size: 220, radius: 16)
+            : const SizedBox(width: 220, height: 220);
+      }
+
+      if (_searchQuery.isNotEmpty) {
+        pSongs = pSongs
+            .where(
+              (t) => t.title.toLowerCase().contains(_searchQuery.toLowerCase()),
+            )
+            .toList();
+      }
+
+      _cachedDetailSongs = pSongs;
+      _cachedDetailImage = imageWidget;
+    }
+
+    _lastDetailView = _buildDetailView(
+      title: baseName,
+      subtitle: '${_cachedDetailSongs!.length} songs',
+      type: type,
+      tracks: _cachedDetailSongs!,
+      imageWidget: _cachedDetailImage!,
+    );
+
+    return _lastDetailView!;
   }
 
   void _setupAudioStreams() {
@@ -321,7 +491,7 @@ class _MainScreenState extends State<MainScreen> {
       ImageProvider? imageProvider;
 
       if (customPath != null) {
-        imageProvider = FileImage(File(customPath));
+        imageProvider = ResizeImage(FileImage(File(customPath)), width: 600);
       } else {
         final artwork = await _audioQuery.queryArtwork(
           int.parse(track.id),
@@ -397,18 +567,22 @@ class _MainScreenState extends State<MainScreen> {
         _shuffledIndices.insert(0, _currentIndex);
       }
 
-      _lastPlayedTrackIds.remove(track.id);
-      _lastPlayedTrackIds.insert(0, track.id);
-      if (_lastPlayedTrackIds.length > 100) _lastPlayedTrackIds.removeLast();
-      _playCounts[track.id] = (_playCounts[track.id] ?? 0) + 1;
+      if (playImmediately) {
+        _lastPlayedTrackIds.remove(track.id);
+        _lastPlayedTrackIds.insert(0, track.id);
+        if (_lastPlayedTrackIds.length > 100) _lastPlayedTrackIds.removeLast();
+        _playCounts[track.id] = (_playCounts[track.id] ?? 0) + 1;
+      }
     });
 
     _updateDominantColor(track);
 
     SharedPreferences.getInstance().then((prefs) {
       prefs.setString('last_playing_track_id', track.id);
-      prefs.setStringList('last_played_track_ids', _lastPlayedTrackIds);
-      prefs.setString('play_counts', jsonEncode(_playCounts));
+      if (playImmediately) {
+        prefs.setStringList('last_played_track_ids', _lastPlayedTrackIds);
+        prefs.setString('play_counts', jsonEncode(_playCounts));
+      }
     });
 
     try {
@@ -671,9 +845,9 @@ class _MainScreenState extends State<MainScreen> {
                     _playbackQueue.add(track);
                     Fluttertoast.showToast(msg: "Added to queue");
                   }),
-                  _buildOptionItem(Icons.playlist_add, 'Add to playlist', () {
+                  _buildOptionItem(Icons.playlist_add, 'Add to Playlist', () {
                     Navigator.pop(context);
-                    _showAddToPlaylistModal(context, track);
+                    _showAddToPlaylistModal(context, [track]);
                   }),
                   _buildOptionItem(
                     isFavorited ? Icons.favorite : Icons.favorite_border,
@@ -751,7 +925,147 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  void _showAddToPlaylistModal(BuildContext context, Track track) {
+  void _showMultiSelectSongsModal(
+    BuildContext context, {
+    required List<Track> candidateTracks,
+    String? predefinedTargetPlaylist,
+  }) {
+    Set<String> selectedTrackIds = {};
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF161616),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return DraggableScrollableSheet(
+              initialChildSize: 0.9,
+              minChildSize: 0.5,
+              maxChildSize: 0.9,
+              expand: false,
+              builder: (_, scrollController) {
+                return Column(
+                  children: [
+                    const SizedBox(height: 16),
+                    Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Select Songs',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: selectedTrackIds.isEmpty
+                                ? null
+                                : () {
+                                    Navigator.pop(context);
+                                    final selectedTracks = candidateTracks.where((t) => selectedTrackIds.contains(t.id)).toList();
+                                    if (predefinedTargetPlaylist != null) {
+                                      setState(() {
+                                        _userPlaylists[predefinedTargetPlaylist]!
+                                            .addAll(selectedTrackIds);
+                                        _cachedDetailKey = null;
+                                        _saveUserPlaylists();
+                                      });
+                                      Fluttertoast.showToast(
+                                          msg: "Added ${selectedTrackIds.length} songs to $predefinedTargetPlaylist");
+                                    } else {
+                                      // Prompt for playlist selection
+                                      _showAddToPlaylistModal(context, selectedTracks);
+                                    }
+                                  },
+                            child: Text(
+                              predefinedTargetPlaylist != null ? 'Save' : 'Next',
+                              style: TextStyle(
+                                color: selectedTrackIds.isEmpty
+                                    ? Colors.white24
+                                    : const Color(0xFF1DB954),
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(color: Colors.white10),
+                    Expanded(
+                      child: ListView.builder(
+                        controller: scrollController,
+                        itemCount: candidateTracks.length,
+                        itemBuilder: (context, index) {
+                          final track = candidateTracks[index];
+                          final isSelected = selectedTrackIds.contains(track.id);
+                          return ListTile(
+                            leading: _buildTrackArtwork(track, size: 44, radius: 6),
+                            title: Text(
+                              track.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                            subtitle: Text(
+                              track.artist,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(color: Colors.white54, fontSize: 12),
+                            ),
+                            trailing: Checkbox(
+                              value: isSelected,
+                              activeColor: const Color(0xFF1DB954),
+                              checkColor: Colors.black,
+                              onChanged: (val) {
+                                setModalState(() {
+                                  if (val == true) {
+                                    selectedTrackIds.add(track.id);
+                                  } else {
+                                    selectedTrackIds.remove(track.id);
+                                  }
+                                });
+                              },
+                            ),
+                            onTap: () {
+                                setModalState(() {
+                                  if (isSelected) {
+                                    selectedTrackIds.remove(track.id);
+                                  } else {
+                                    selectedTrackIds.add(track.id);
+                                  }
+                                });
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showAddToPlaylistModal(BuildContext context, List<Track> tracksToAdd) {
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF161616),
@@ -785,7 +1099,7 @@ class _MainScreenState extends State<MainScreen> {
                     ),
                     onTap: () {
                       Navigator.pop(context);
-                      _showCreatePlaylistModal(context, trackToAdd: track);
+                      _showCreatePlaylistModal(context, tracksToAdd: tracksToAdd);
                     },
                   ),
                   if (_userPlaylists.isNotEmpty)
@@ -802,15 +1116,16 @@ class _MainScreenState extends State<MainScreen> {
                       ),
                       onTap: () {
                         setState(() {
-                          if (!_userPlaylists[playlistName]!.contains(
-                            track.id,
-                          )) {
-                            _userPlaylists[playlistName]!.add(track.id);
-                            _saveUserPlaylists();
+                          for (final track in tracksToAdd) {
+                            if (!_userPlaylists[playlistName]!.contains(track.id)) {
+                              _userPlaylists[playlistName]!.add(track.id);
+                            }
                           }
+                          _cachedDetailKey = null;
+                          _saveUserPlaylists();
                         });
                         Navigator.pop(context);
-                        Fluttertoast.showToast(msg: "Added to \$playlistName");
+                        Fluttertoast.showToast(msg: "Added ${tracksToAdd.length} songs to $playlistName");
                       },
                     );
                   }).toList(),
@@ -824,7 +1139,7 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  void _showCreatePlaylistModal(BuildContext context, {Track? trackToAdd}) {
+  void _showCreatePlaylistModal(BuildContext context, {List<Track>? tracksToAdd}) {
     final TextEditingController nameController = TextEditingController();
     showDialog(
       context: context,
@@ -862,9 +1177,10 @@ class _MainScreenState extends State<MainScreen> {
                 final name = nameController.text.trim();
                 if (name.isNotEmpty && !_userPlaylists.containsKey(name)) {
                   setState(() {
-                    _userPlaylists[name] = trackToAdd != null
-                        ? [trackToAdd.id]
+                    _userPlaylists[name] = tracksToAdd != null
+                        ? tracksToAdd.map((t) => t.id).toList()
                         : [];
+                    _cachedDetailKey = null;
                     _saveUserPlaylists();
                   });
                   Navigator.pop(context);
@@ -957,7 +1273,7 @@ class _MainScreenState extends State<MainScreen> {
                               borderRadius: BorderRadius.circular(12),
                               image: currentCoverPath != null
                                   ? DecorationImage(
-                                      image: FileImage(File(currentCoverPath!)),
+                                      image: ResizeImage(FileImage(File(currentCoverPath!)), width: 600),
                                       fit: BoxFit.cover,
                                     )
                                   : null,
@@ -1068,6 +1384,7 @@ class _MainScreenState extends State<MainScreen> {
                                     _updateDominantColor(_playingTrack!);
                                   }
                                 }
+                                _cachedDetailKey = null; // Clear cache so Lists like Recently Added auto-update
                               });
                               _saveMetadataOverrides();
                               Navigator.pop(context);
@@ -1088,6 +1405,120 @@ class _MainScreenState extends State<MainScreen> {
               ),
             );
           },
+        );
+      },
+    );
+  }
+
+  void _showDetailOptions(String title, String type, List<Track> tracks) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF161616),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 16),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(height: 24),
+              _buildOptionItem(Icons.playlist_play, 'Play Next', () {
+                Navigator.pop(context);
+                if (tracks.isNotEmpty) {
+                  _playbackQueue.insertAll(_currentIndex + 1, tracks);
+                  Fluttertoast.showToast(
+                    msg: "Added ${tracks.length} tracks to queue",
+                  );
+                }
+              }),
+              _buildOptionItem(Icons.queue_music, 'Add to Queue', () {
+                Navigator.pop(context);
+                if (tracks.isNotEmpty) {
+                  _playbackQueue.addAll(tracks);
+                  Fluttertoast.showToast(
+                    msg: "Added ${tracks.length} tracks to queue",
+                  );
+                }
+              }),
+              _buildOptionItem(Icons.playlist_add, 'Add to Playlist', () {
+                Navigator.pop(context);
+                _showMultiSelectSongsModal(context, candidateTracks: tracks);
+              }),
+              if (type == 'Playlist' && _userPlaylists.containsKey(title)) ...[
+                _buildOptionItem(Icons.add, 'Add Songs', () {
+                  Navigator.pop(context);
+                  _showMultiSelectSongsModal(context, candidateTracks: _allTracks, predefinedTargetPlaylist: title);
+                }),
+                _buildOptionItem(Icons.edit, 'Rename Playlist', () {
+                  Navigator.pop(context);
+                  _showRenamePlaylistModal(context, title);
+                }),
+                _buildOptionItem(Icons.image, 'Edit Cover', () async {
+                  Navigator.pop(context);
+                  final XFile? image = await _imagePicker.pickImage(
+                    source: ImageSource.gallery,
+                  );
+                  if (image != null) {
+                    setState(() {
+                      _playlistCovers[title] = image.path;
+                      _cachedDetailKey =
+                          null; // Force rebuild to show new cover
+                    });
+                    SharedPreferences.getInstance().then((prefs) {
+                      prefs.setString(
+                        'playlist_covers',
+                        jsonEncode(_playlistCovers),
+                      );
+                    });
+                  }
+                }),
+                _buildOptionItem(Icons.delete_outline, 'Delete Playlist', () {
+                  Navigator.pop(context);
+                  setState(() {
+                    _userPlaylists.remove(title);
+                    _playlistCovers.remove(title);
+                    _selectedPlaylistDetail = null;
+                  });
+                  SharedPreferences.getInstance().then((prefs) {
+                    prefs.setString(
+                      'user_playlists',
+                      jsonEncode(_userPlaylists),
+                    );
+                    prefs.setString(
+                      'playlist_covers',
+                      jsonEncode(_playlistCovers),
+                    );
+                  });
+                }, iconColor: Colors.red),
+              ],
+              const SizedBox(height: 16),
+            ],
+          ),
         );
       },
     );
@@ -1132,6 +1563,11 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDetailView =
+        (_currentPageIndex == 1 && _selectedPlaylistDetail != null) ||
+        (_currentPageIndex == 2 && _selectedArtistDetail != null) ||
+        (_currentPageIndex == 3 && _selectedAlbumDetail != null);
+
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
@@ -1139,8 +1575,24 @@ class _MainScreenState extends State<MainScreen> {
         systemNavigationBarColor: Colors.transparent,
         systemNavigationBarIconBrightness: Brightness.light,
       ),
-      child: Scaffold(
-        resizeToAvoidBottomInset: false,
+      child: PopScope(
+        canPop: !_isPlayerOpen && !isDetailView && !_showLyrics,
+        onPopInvoked: (didPop) {
+          if (didPop) return;
+          if (_showLyrics) {
+            setState(() => _showLyrics = false);
+          } else if (_isPlayerOpen) {
+            setState(() => _isPlayerOpen = false);
+          } else if (isDetailView) {
+            setState(() {
+              _selectedPlaylistDetail = null;
+              _selectedArtistDetail = null;
+              _selectedAlbumDetail = null;
+            });
+          }
+        },
+        child: Scaffold(
+          resizeToAvoidBottomInset: false,
         body: Stack(
           children: [
             SafeArea(
@@ -1157,18 +1609,34 @@ class _MainScreenState extends State<MainScreen> {
                         _buildSearchBar(),
                         _buildFilterCapsules(),
                         Expanded(child: _buildBodyContent()),
-                        if (_playingTrack != null) const SizedBox(height: 72),
                       ],
                     ),
+            ),
+
+            Positioned.fill(
+              child: AnimatedSlide(
+                duration: _isDraggingDetail
+                    ? Duration.zero
+                    : const Duration(milliseconds: 400),
+                curve: Curves.easeOutCubic,
+                offset: isDetailView
+                    ? Offset(0, _detailDragOffset)
+                    : const Offset(0, 1),
+                child: _getActiveDetailView(),
+              ),
             ),
 
             if (_playingTrack != null) _buildMiniPlayer(_playingTrack!),
 
             Positioned.fill(
               child: AnimatedSlide(
-                duration: _isDraggingPlayer ? Duration.zero : const Duration(milliseconds: 400),
+                duration: _isDraggingPlayer
+                    ? Duration.zero
+                    : const Duration(milliseconds: 400),
                 curve: Curves.easeOutQuint,
-                offset: _isPlayerOpen ? Offset(0, _playerDragOffset) : const Offset(0, 1),
+                offset: _isPlayerOpen
+                    ? Offset(0, _playerDragOffset)
+                    : const Offset(0, 1),
                 child: _playingTrack != null
                     ? _buildFullScreenPlayer(_playingTrack!)
                     : const SizedBox.shrink(),
@@ -1176,16 +1644,12 @@ class _MainScreenState extends State<MainScreen> {
             ),
           ],
         ),
+        ),
       ),
     );
   }
 
   Widget _buildHeader() {
-    final showBackButton =
-        (_currentPageIndex == 1 && _selectedPlaylistDetail != null) ||
-        (_currentPageIndex == 2 && _selectedArtistDetail != null) ||
-        (_currentPageIndex == 3 && _selectedAlbumDetail != null);
-
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       child: SizedBox(
@@ -1198,10 +1662,10 @@ class _MainScreenState extends State<MainScreen> {
               _currentPageIndex == 0
                   ? 'Library'
                   : _currentPageIndex == 1
-                  ? (_selectedPlaylistDetail ?? 'Playlists')
+                  ? 'Playlists'
                   : _currentPageIndex == 2
-                  ? (_selectedArtistDetail ?? 'Artists')
-                  : (_selectedAlbumDetail ?? 'Albums'),
+                  ? 'Artists'
+                  : 'Albums',
               style: const TextStyle(
                 fontSize: 32,
                 fontWeight: FontWeight.w800,
@@ -1209,23 +1673,6 @@ class _MainScreenState extends State<MainScreen> {
                 color: Colors.white,
               ),
             ),
-            if (showBackButton)
-              IconButton(
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                icon: const Icon(
-                  Icons.arrow_back_ios_new,
-                  color: Colors.white54,
-                  size: 24,
-                ),
-                onPressed: () {
-                  setState(() {
-                    _selectedPlaylistDetail = null;
-                    _selectedArtistDetail = null;
-                    _selectedAlbumDetail = null;
-                  });
-                },
-              ),
           ],
         ),
       ),
@@ -1334,8 +1781,16 @@ class _MainScreenState extends State<MainScreen> {
       return _buildEmptyState();
     }
 
+    final isDetailView =
+        (_currentPageIndex == 1 && _selectedPlaylistDetail != null) ||
+        (_currentPageIndex == 2 && _selectedArtistDetail != null) ||
+        (_currentPageIndex == 3 && _selectedAlbumDetail != null);
+
     return PageView(
       controller: _pageController,
+      physics: isDetailView
+          ? const NeverScrollableScrollPhysics()
+          : const BouncingScrollPhysics(),
       onPageChanged: (index) {
         setState(() {
           _currentPageIndex = index;
@@ -1429,52 +1884,6 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Widget _buildPlaylistsTab() {
-    if (_selectedPlaylistDetail != null) {
-      List<Track> playlistSongs = [];
-      if (_selectedPlaylistDetail == 'Favourites') {
-        playlistSongs = _allTracks
-            .where((t) => _favoriteTrackIds.contains(t.id))
-            .toList();
-      } else if (_selectedPlaylistDetail == 'Recently Added') {
-        playlistSongs = List.from(_allTracks);
-      } else if (_selectedPlaylistDetail == 'Last Played') {
-        playlistSongs = _lastPlayedTrackIds
-            .map(
-              (id) => _allTracks.firstWhere(
-                (t) => t.id == id,
-                orElse: () => _allTracks[0],
-              ),
-            )
-            .where((t) => _lastPlayedTrackIds.contains(t.id))
-            .toList();
-      } else if (_selectedPlaylistDetail == 'Most Played') {
-        playlistSongs = List.from(_allTracks);
-        playlistSongs.sort(
-          (a, b) => (_playCounts[b.id] ?? 0).compareTo(_playCounts[a.id] ?? 0),
-        );
-        playlistSongs = playlistSongs
-            .where((t) => (_playCounts[t.id] ?? 0) > 0)
-            .toList();
-      } else if (_userPlaylists.containsKey(_selectedPlaylistDetail)) {
-        final trackIds = _userPlaylists[_selectedPlaylistDetail]!;
-        playlistSongs = _allTracks
-            .where((t) => trackIds.contains(t.id))
-            .toList();
-      }
-
-      if (_searchQuery.isNotEmpty) {
-        playlistSongs = playlistSongs
-            .where(
-              (t) =>
-                  t.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-                  t.artist.toLowerCase().contains(_searchQuery.toLowerCase()),
-            )
-            .toList();
-      }
-
-      return _buildSongList(playlistSongs);
-    }
-
     final favorites = _allTracks
         .where((t) => _favoriteTrackIds.contains(t.id))
         .toList();
@@ -1496,7 +1905,12 @@ class _MainScreenState extends State<MainScreen> {
 
     return ListView(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        top: 12,
+        bottom: _playingTrack != null ? 84 : 12,
+      ),
       children: [
         ListTile(
           contentPadding: const EdgeInsets.symmetric(
@@ -1584,6 +1998,41 @@ class _MainScreenState extends State<MainScreen> {
       onTap: () {
         setState(() {
           _selectedPlaylistDetail = title;
+          _searchQuery = '';
+          _searchController.clear();
+
+          List<Track> pSongs = [];
+          if (title == 'Favourites') {
+            pSongs = _allTracks
+                .where((t) => _favoriteTrackIds.contains(t.id))
+                .toList();
+          } else if (title == 'Recently Added') {
+            pSongs = List.from(_allTracks);
+          } else if (title == 'Last Played') {
+            pSongs = _lastPlayedTrackIds
+                .map(
+                  (id) => _allTracks.firstWhere(
+                    (t) => t.id == id,
+                    orElse: () => _allTracks[0],
+                  ),
+                )
+                .where((t) => _lastPlayedTrackIds.contains(t.id))
+                .toList();
+          } else if (title == 'Most Played') {
+            pSongs = List.from(_allTracks);
+            pSongs.sort(
+              (a, b) =>
+                  (_playCounts[b.id] ?? 0).compareTo(_playCounts[a.id] ?? 0),
+            );
+          } else if (_userPlaylists.containsKey(title)) {
+            pSongs = _allTracks
+                .where((t) => _userPlaylists[title]!.contains(t.id))
+                .toList();
+          }
+          _detailColorFuture = _getDetailColor(
+            pSongs.isNotEmpty ? pSongs.first : null,
+            playlistName: title,
+          );
         });
       },
       leading: _playlistCovers.containsKey(title)
@@ -1593,7 +2042,7 @@ class _MainScreenState extends State<MainScreen> {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(8),
                 image: DecorationImage(
-                  image: FileImage(File(_playlistCovers[title]!)),
+                  image: ResizeImage(FileImage(File(_playlistCovers[title]!)), width: 600),
                   fit: BoxFit.cover,
                 ),
               ),
@@ -1665,8 +2114,16 @@ class _MainScreenState extends State<MainScreen> {
                   );
                 }
               }),
+              _buildOptionItem(Icons.playlist_add, 'Add to Playlist', () {
+                Navigator.pop(context);
+                _showMultiSelectSongsModal(context, candidateTracks: songs);
+              }),
               if (isCustomPlaylist) ...[
                 const Divider(color: Colors.white10, height: 1),
+                _buildOptionItem(Icons.add, 'Add Songs', () {
+                  Navigator.pop(context);
+                  _showMultiSelectSongsModal(context, candidateTracks: _allTracks, predefinedTargetPlaylist: title);
+                }),
                 _buildOptionItem(Icons.edit, 'Rename playlist', () {
                   Navigator.pop(context);
                   _showRenamePlaylistModal(context, title);
@@ -1796,7 +2253,7 @@ class _MainScreenState extends State<MainScreen> {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(radius),
           image: DecorationImage(
-            image: FileImage(File(customPath)),
+            image: ResizeImage(FileImage(File(customPath)), width: 600),
             fit: BoxFit.cover,
           ),
         ),
@@ -1916,20 +2373,6 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Widget _buildArtistsTab() {
-    if (_selectedArtistDetail != null) {
-      List<Track> artistSongs = _allTracks
-          .where((t) => t.artist == _selectedArtistDetail)
-          .toList();
-      if (_searchQuery.isNotEmpty) {
-        artistSongs = artistSongs
-            .where(
-              (t) => t.title.toLowerCase().contains(_searchQuery.toLowerCase()),
-            )
-            .toList();
-      }
-      return _buildSongList(artistSongs);
-    }
-
     final artists = _allTracks.map((t) => t.artist).toSet().toList();
     if (_searchQuery.isNotEmpty) {
       artists.retainWhere(
@@ -1939,7 +2382,12 @@ class _MainScreenState extends State<MainScreen> {
 
     return ListView.builder(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+      padding: EdgeInsets.only(
+        left: 24,
+        right: 24,
+        top: 12,
+        bottom: _playingTrack != null ? 84 : 12,
+      ),
       itemCount: artists.length,
       itemBuilder: (context, index) {
         final artist = artists[index];
@@ -1950,6 +2398,14 @@ class _MainScreenState extends State<MainScreen> {
           onTap: () {
             setState(() {
               _selectedArtistDetail = artist;
+              _searchQuery = '';
+              _searchController.clear();
+              final artistSongs = _allTracks
+                  .where((t) => t.artist == artist)
+                  .toList();
+              _detailColorFuture = _getDetailColor(
+                artistSongs.isNotEmpty ? artistSongs.first : null,
+              );
             });
           },
           leading: _buildTrackArtwork(firstTrack, size: 44, radius: 22),
@@ -1972,20 +2428,6 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Widget _buildAlbumsTab() {
-    if (_selectedAlbumDetail != null) {
-      List<Track> albumSongs = _allTracks
-          .where((t) => t.album == _selectedAlbumDetail)
-          .toList();
-      if (_searchQuery.isNotEmpty) {
-        albumSongs = albumSongs
-            .where(
-              (t) => t.title.toLowerCase().contains(_searchQuery.toLowerCase()),
-            )
-            .toList();
-      }
-      return _buildSongList(albumSongs);
-    }
-
     final albums = _allTracks.map((t) => t.album).toSet().toList();
     if (_searchQuery.isNotEmpty) {
       albums.retainWhere(
@@ -1995,7 +2437,12 @@ class _MainScreenState extends State<MainScreen> {
 
     return ListView.builder(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+      padding: EdgeInsets.only(
+        left: 24,
+        right: 24,
+        top: 12,
+        bottom: _playingTrack != null ? 84 : 12,
+      ),
       itemCount: albums.length,
       itemBuilder: (context, index) {
         final album = albums[index];
@@ -2006,6 +2453,14 @@ class _MainScreenState extends State<MainScreen> {
           onTap: () {
             setState(() {
               _selectedAlbumDetail = album;
+              _searchQuery = '';
+              _searchController.clear();
+              final albumSongs = _allTracks
+                  .where((t) => t.album == album)
+                  .toList();
+              _detailColorFuture = _getDetailColor(
+                albumSongs.isNotEmpty ? albumSongs.first : null,
+              );
             });
           },
           leading: _buildTrackArtwork(firstTrack, size: 44, radius: 6),
@@ -2027,8 +2482,222 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  Widget _buildSongList(List<Track> list) {
-    if (list.isEmpty) {
+  Widget _buildDetailView({
+    required String title,
+    required String subtitle,
+    required String type,
+    required Widget imageWidget,
+    required List<Track> tracks,
+  }) {
+    final header = GestureDetector(
+      onVerticalDragUpdate: (details) {
+        if (details.primaryDelta! > 0) {
+          setState(() {
+            _isDraggingDetail = true;
+            _detailDragOffset +=
+                details.primaryDelta! / MediaQuery.of(context).size.height;
+          });
+        }
+      },
+      onVerticalDragEnd: (details) {
+        setState(() {
+          _isDraggingDetail = false;
+          if (_detailDragOffset > 0.2 ||
+              (details.primaryVelocity != null &&
+                  details.primaryVelocity! > 300)) {
+            _selectedPlaylistDetail = null;
+            _selectedArtistDetail = null;
+            _selectedAlbumDetail = null;
+          }
+          _detailDragOffset = 0.0;
+        });
+      },
+      child: Container(
+        color: Colors.transparent,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            const SizedBox(height: 120),
+            Container(
+              width: 220,
+              height: 220,
+              decoration: BoxDecoration(
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.4),
+                    blurRadius: 30,
+                    offset: const Offset(0, 15),
+                  ),
+                ],
+              ),
+              child: imageWidget,
+            ),
+            const SizedBox(height: 32),
+            Text(
+              type.toUpperCase(),
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 2,
+                color: Colors.white54,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 32,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+                height: 1.1,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              subtitle,
+              style: const TextStyle(fontSize: 14, color: Colors.white70),
+            ),
+            const SizedBox(height: 24),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.start,
+                children: [
+                  FloatingActionButton(
+                    heroTag: null,
+                    backgroundColor: const Color(0xFF1DB954),
+                    onPressed: () {
+                      if (tracks.isNotEmpty) {
+                        setState(() {
+                          _playbackQueue = List.from(tracks);
+                          _shuffledIndices.clear();
+                          if (_isShuffle) {
+                            _shuffledIndices = List.generate(
+                              _playbackQueue.length,
+                              (i) => i,
+                            );
+                            _shuffledIndices.shuffle();
+                          }
+                        });
+                        _playTrack(0);
+                      }
+                    },
+                    child: const Icon(
+                      Icons.play_arrow,
+                      color: Colors.black,
+                      size: 36,
+                    ),
+                  ),
+                  const SizedBox(width: 24),
+                  IconButton(
+                    icon: const Icon(
+                      Icons.shuffle,
+                      color: Colors.white54,
+                      size: 30,
+                    ),
+                    onPressed: () {
+                      if (tracks.isNotEmpty) {
+                        final shuffledTracks = List<Track>.from(tracks)
+                          ..shuffle();
+                        _playTrack(0, sourceList: shuffledTracks);
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
+        ),
+      ),
+    );
+
+    final detailStack = Container(
+      color: const Color(0xFF0A0A0A),
+      child: Stack(
+        children: [
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 400,
+            child: FutureBuilder<Color?>(
+              future: _detailColorFuture,
+              builder: (context, snapshot) {
+                final color = snapshot.data ?? const Color(0xFF161616);
+                return Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [color.withOpacity(0.4), const Color(0xFF0A0A0A)],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          _buildSongList(tracks, header: header, isMostPlayed: title == 'Most Played'),
+          Positioned(
+            top: 48,
+            left: 16,
+            child: IconButton(
+              icon: const Icon(
+                Icons.arrow_back_ios_new,
+                color: Colors.white,
+                size: 24,
+              ),
+              onPressed: () {
+                setState(() {
+                  _selectedPlaylistDetail = null;
+                  _selectedArtistDetail = null;
+                  _selectedAlbumDetail = null;
+                });
+              },
+            ),
+          ),
+          Positioned(
+            top: 48,
+            right: 16,
+            child: IconButton(
+              icon: const Icon(Icons.more_vert, color: Colors.white, size: 28),
+              onPressed: () => _showDetailOptions(title, type, tracks),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    return GestureDetector(
+      onVerticalDragUpdate: (details) {
+        if (details.primaryDelta! > 0) {
+          setState(() {
+            _isDraggingDetail = true;
+            _detailDragOffset +=
+                details.primaryDelta! / MediaQuery.of(context).size.height;
+          });
+        }
+      },
+      onVerticalDragEnd: (details) {
+        setState(() {
+          _isDraggingDetail = false;
+          if (_detailDragOffset > 0.2 ||
+              (details.primaryVelocity != null &&
+                  details.primaryVelocity! > 300)) {
+            _selectedPlaylistDetail = null;
+            _selectedArtistDetail = null;
+            _selectedAlbumDetail = null;
+          }
+          _detailDragOffset = 0.0;
+        });
+      },
+      child: detailStack,
+    );
+  }
+
+  Widget _buildSongList(List<Track> list, {Widget? header, bool isMostPlayed = false}) {
+    if (list.isEmpty && header == null) {
       return Center(
         child: Text(
           'No matching songs found',
@@ -2038,10 +2707,17 @@ class _MainScreenState extends State<MainScreen> {
     }
     return ListView.builder(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      itemCount: list.length,
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        top: 12,
+        bottom: _playingTrack != null ? 84 : 12,
+      ),
+      itemCount: list.length + (header != null ? 1 : 0),
       itemBuilder: (context, index) {
-        final track = list[index];
+        if (header != null && index == 0) return header;
+        final trackIndex = header != null ? index - 1 : index;
+        final track = list[trackIndex];
         final isSelected =
             _playingTrack != null && track.id == _playingTrack!.id;
         final isFavorited = _favoriteTrackIds.contains(track.id);
@@ -2060,7 +2736,7 @@ class _MainScreenState extends State<MainScreen> {
               horizontal: 16,
               vertical: 2,
             ),
-            onTap: () => _playTrack(index, sourceList: list),
+            onTap: () => _playTrack(trackIndex, sourceList: list),
             leading: _buildTrackArtwork(track, size: 44, radius: 6),
             title: Text(
               track.title,
@@ -2073,7 +2749,7 @@ class _MainScreenState extends State<MainScreen> {
               ),
             ),
             subtitle: Text(
-              track.artist,
+              isMostPlayed ? '${_playCounts[track.id] ?? 0} plays • ${track.artist}' : track.artist,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(color: Colors.white38, fontSize: 12),
@@ -2123,7 +2799,8 @@ class _MainScreenState extends State<MainScreen> {
         onVerticalDragUpdate: (details) {
           if (details.primaryDelta != null) {
             setState(() {
-              _playerDragOffset += details.primaryDelta! / MediaQuery.of(context).size.height;
+              _playerDragOffset +=
+                  details.primaryDelta! / MediaQuery.of(context).size.height;
               if (_playerDragOffset < 0) _playerDragOffset = 0;
               if (_playerDragOffset > 1) _playerDragOffset = 1;
             });
@@ -2132,7 +2809,8 @@ class _MainScreenState extends State<MainScreen> {
         onVerticalDragEnd: (details) {
           setState(() {
             _isDraggingPlayer = false;
-            if (_playerDragOffset < 0.85 || (details.primaryVelocity ?? 0) < -300) {
+            if (_playerDragOffset < 0.85 ||
+                (details.primaryVelocity ?? 0) < -300) {
               _isPlayerOpen = true;
               _playerDragOffset = 0.0;
             } else {
@@ -2392,7 +3070,8 @@ class _MainScreenState extends State<MainScreen> {
         onVerticalDragUpdate: (details) {
           if (details.primaryDelta != null) {
             setState(() {
-              _playerDragOffset += details.primaryDelta! / MediaQuery.of(context).size.height;
+              _playerDragOffset +=
+                  details.primaryDelta! / MediaQuery.of(context).size.height;
               if (_playerDragOffset < 0) _playerDragOffset = 0;
             });
           }
@@ -2400,7 +3079,8 @@ class _MainScreenState extends State<MainScreen> {
         onVerticalDragEnd: (details) {
           setState(() {
             _isDraggingPlayer = false;
-            if (_playerDragOffset > 0.15 || (details.primaryVelocity ?? 0) > 300) {
+            if (_playerDragOffset > 0.15 ||
+                (details.primaryVelocity ?? 0) > 300) {
               _isPlayerOpen = false;
               _showLyrics = false;
             }
@@ -2431,7 +3111,9 @@ class _MainScreenState extends State<MainScreen> {
                         end: Alignment.bottomCenter,
                         colors: [
                           color ?? const Color(0xFF1E1E1E),
-                          color != null ? Color.lerp(color, Colors.black, 0.85)! : const Color(0xFF0A0A0A),
+                          color != null
+                              ? Color.lerp(color, Colors.black, 0.85)!
+                              : const Color(0xFF0A0A0A),
                         ],
                       ),
                     ),
