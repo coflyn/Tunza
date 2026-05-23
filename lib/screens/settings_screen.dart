@@ -31,6 +31,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   int _crossfadeDuration = 150;
   bool _pauseOnDisconnect = true;
   List<String> _hiddenTrackIds = [];
+  Future<List<SongModel>>? _songsFuture;
 
   @override
   void initState() {
@@ -205,8 +206,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 icon: Icons.visibility_off_outlined,
                 title: 'Hidden Tracks',
                 subtitle: 'Manage hidden and filtered tracks',
-                onTap: () {
-                  _showHiddenTracksSheet(context);
+                onTap: () async {
+                  _songsFuture = OnAudioQuery().querySongs(
+                    sortType: SongSortType.TITLE,
+                    orderType: OrderType.ASC_OR_SMALLER,
+                    uriType: UriType.EXTERNAL,
+                    ignoreCase: true,
+                  );
+                  await _showHiddenTracksSheet(context);
+                  _songsFuture = null;
                 },
               ),
               _buildPremiumListTile(
@@ -260,9 +268,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 onTap: () async {
                   final url = Uri.parse('https://github.com/coflyn/Tunza');
-                  if (await canLaunchUrl(url)) {
-                    await launchUrl(url, mode: LaunchMode.externalApplication);
-                  } else {
+                  try {
+                    final launched = await launchUrl(
+                      url,
+                      mode: LaunchMode.externalApplication,
+                    );
+                    if (!launched) {
+                      Fluttertoast.showToast(msg: "Could not open link");
+                    }
+                  } catch (e) {
                     Fluttertoast.showToast(msg: "Could not open link");
                   }
                 },
@@ -279,9 +293,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 onTap: () async {
                   final url = Uri.parse('https://sociabuzz.com/coflyn');
-                  if (await canLaunchUrl(url)) {
-                    await launchUrl(url, mode: LaunchMode.externalApplication);
-                  } else {
+                  try {
+                    final launched = await launchUrl(
+                      url,
+                      mode: LaunchMode.externalApplication,
+                    );
+                    if (!launched) {
+                      Fluttertoast.showToast(msg: "Could not open link");
+                    }
+                  } catch (e) {
                     Fluttertoast.showToast(msg: "Could not open link");
                   }
                 },
@@ -411,43 +431,52 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showSleepTimerDialog() {
-    showDialog(
+    showModalBottomSheet(
       context: context,
+      backgroundColor: const Color(0xFF161616),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      isScrollControlled: true,
       builder: (context) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF1E1E1E),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: const Text(
-            'Sleep Timer',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-          ),
-          content: Column(
+        return SafeArea(
+          child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildTimerOption('Off', 0),
-              _buildTimerOption('15 Minutes', 15),
-              _buildTimerOption('30 Minutes', 30),
-              _buildTimerOption('60 Minutes', 60),
-              ListTile(
-                title: const Text(
-                  'Custom...',
-                  style: TextStyle(color: Colors.white),
+              const SizedBox(height: 12),
+              // Drag Handle
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
-                trailing: const Icon(
-                  Icons.edit,
-                  color: Colors.white54,
-                  size: 18,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                onTap: () {
-                  Navigator.pop(context);
-                  _showCustomTimerDialog();
-                },
               ),
+              const SizedBox(height: 16),
+              const Center(
+                child: Text(
+                  'Sleep timer',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Divider(color: Colors.white10, height: 1),
+              _buildTimerOption('5 minutes', 5),
+              _buildTimerOption('10 minutes', 10),
+              _buildTimerOption('15 minutes', 15),
+              _buildTimerOption('30 minutes', 30),
+              _buildTimerOption('45 minutes', 45),
+              _buildTimerOption('1 hour', 60),
+              _buildTimerOption('End of track', -1),
+              _buildTimerOption('Turn off', 0),
+              const SizedBox(height: 16),
             ],
           ),
         );
@@ -455,61 +484,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _showCustomTimerDialog() {
-    int customMinutes = 0;
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E1E),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text(
-          'Custom Timer',
-          style: TextStyle(color: Colors.white),
-        ),
-        content: TextField(
-          keyboardType: TextInputType.number,
-          style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(
-            hintText: 'Minutes (e.g. 120)',
-            hintStyle: TextStyle(color: Colors.white38),
-            enabledBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: Colors.white38),
-            ),
-            focusedBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: Color(0xFF1DB954)),
-            ),
-          ),
-          onChanged: (val) {
-            customMinutes = int.tryParse(val) ?? 0;
-          },
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: Colors.white54),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              widget.onSetSleepTimer(customMinutes);
-              Navigator.pop(context);
-            },
-            child: const Text(
-              'Start',
-              style: TextStyle(color: Color(0xFF1DB954)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildTimerOption(String title, int minutes) {
     return ListTile(
-      title: Text(title, style: const TextStyle(color: Colors.white)),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+      title: Text(
+        title,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 16,
+          fontWeight: FontWeight.w400,
+        ),
+      ),
       onTap: () {
         widget.onSetSleepTimer(minutes);
         Navigator.pop(context);
@@ -565,8 +550,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _showHiddenTracksSheet(BuildContext context) {
-    showModalBottomSheet(
+  Future<void> _showHiddenTracksSheet(BuildContext context) {
+    return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: const Color(0xFF0A0A0A),
@@ -576,14 +561,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setModalState) {
-            final OnAudioQuery audioQuery = OnAudioQuery();
             return FutureBuilder<List<SongModel>>(
-              future: audioQuery.querySongs(
-                sortType: SongSortType.TITLE,
-                orderType: OrderType.ASC_OR_SMALLER,
-                uriType: UriType.EXTERNAL,
-                ignoreCase: true,
-              ),
+              future: _songsFuture,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const SizedBox(

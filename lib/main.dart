@@ -6,7 +6,7 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:audio_session/audio_session.dart';
-import 'package:just_audio_background/just_audio_background.dart';
+import 'package:audio_service/audio_service.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -28,6 +28,150 @@ part 'ui/modals_ui.dart';
 
 bool isBackgroundInitialized = false;
 String? backgroundInitError;
+late AudioHandler audioHandler;
+
+class MyAudioHandler extends BaseAudioHandler {
+  final player = AudioPlayer();
+
+  MyAudioHandler() {
+    player.playbackEventStream.map(_transformEvent).pipe(playbackState);
+
+    player.sequenceStateStream.listen((sequenceState) {
+      final queueItems = sequenceState.sequence
+          .map((source) => source.tag as MediaItem)
+          .toList();
+      queue.add(queueItems);
+
+      final currentSource = sequenceState.currentSource;
+      if (currentSource != null) {
+        final item = currentSource.tag as MediaItem?;
+        if (item != null) {
+          mediaItem.add(item);
+        }
+      }
+    });
+  }
+
+  @override
+  Future<void> play() async {
+    if (_MainScreenState.mainScreenState != null) {
+      await _MainScreenState.mainScreenState!._playWithFade();
+    } else {
+      await player.play();
+    }
+  }
+
+  @override
+  Future<void> pause() async {
+    if (_MainScreenState.mainScreenState != null) {
+      await _MainScreenState.mainScreenState!._pauseWithFade();
+    } else {
+      await player.pause();
+    }
+  }
+
+  @override
+  Future<void> stop() async {
+    await player.stop();
+    playbackState.add(
+      playbackState.value.copyWith(
+        playing: false,
+        processingState: AudioProcessingState.idle,
+        controls: [],
+      ),
+    );
+    await super.stop();
+  }
+
+  @override
+  Future<void> seek(Duration position) => player.seek(position);
+
+  @override
+  Future<void> skipToNext() async {
+    if (_MainScreenState.mainScreenState != null) {
+      _MainScreenState.mainScreenState!._playNext();
+    }
+  }
+
+  @override
+  Future<void> skipToPrevious() async {
+    if (_MainScreenState.mainScreenState != null) {
+      _MainScreenState.mainScreenState!._playPrevious();
+    }
+  }
+
+  @override
+  Future<dynamic> customAction(
+    String name, [
+    Map<String, dynamic>? extras,
+  ]) async {
+    if (name == 'close') {
+      await stop();
+    } else if (name == 'favorite') {
+      final currentId = mediaItem.value?.id;
+      if (currentId != null && _MainScreenState.mainScreenState != null) {
+        _MainScreenState.mainScreenState!._toggleFavorite(currentId);
+        refreshPlaybackState();
+      }
+    }
+  }
+
+  void refreshPlaybackState() {
+    playbackState.add(
+      playbackState.value.copyWith(
+        controls: [
+          MediaControl.skipToPrevious,
+          if (player.playing) MediaControl.pause else MediaControl.play,
+          MediaControl.skipToNext,
+        ],
+        systemActions: const {
+          MediaAction.seek,
+          MediaAction.seekForward,
+          MediaAction.seekBackward,
+          MediaAction.play,
+          MediaAction.pause,
+          MediaAction.skipToNext,
+          MediaAction.skipToPrevious,
+        },
+      ),
+    );
+  }
+
+  PlaybackState _transformEvent(PlaybackEvent event) {
+    return PlaybackState(
+      controls: [
+        MediaControl.skipToPrevious,
+        if (player.playing) MediaControl.pause else MediaControl.play,
+        MediaControl.skipToNext,
+      ],
+      systemActions: const {
+        MediaAction.seek,
+        MediaAction.seekForward,
+        MediaAction.seekBackward,
+        MediaAction.play,
+        MediaAction.pause,
+        MediaAction.skipToNext,
+        MediaAction.skipToPrevious,
+      },
+      androidCompactActionIndices: const [0, 1, 2],
+      processingState:
+          const {
+            ProcessingState.idle: AudioProcessingState.idle,
+            ProcessingState.loading: AudioProcessingState.loading,
+            ProcessingState.buffering: AudioProcessingState.buffering,
+            ProcessingState.ready: AudioProcessingState.ready,
+            ProcessingState.completed: AudioProcessingState.completed,
+          }[player.processingState] ??
+          AudioProcessingState.idle,
+      playing: player.playing,
+      updatePosition: event.updatePosition,
+      updateTime: event.updateTime,
+      bufferedPosition: player.bufferedPosition,
+      speed: player.speed,
+      queueIndex: event.currentIndex,
+    );
+  }
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -37,17 +181,20 @@ void main() async {
   await session.configure(const AudioSessionConfiguration.music());
 
   try {
-    await JustAudioBackground.init(
-      androidNotificationChannelId: 'com.tunza.music.channel.audio.v5',
-      androidNotificationChannelName: 'Tunza Audio Player',
-      androidNotificationOngoing: true,
-      androidStopForegroundOnPause: false,
-      androidShowNotificationBadge: true,
-      androidNotificationIcon: 'mipmap/ic_launcher',
+    audioHandler = await AudioService.init(
+      builder: () => MyAudioHandler(),
+      config: AudioServiceConfig(
+        androidNotificationChannelId: 'com.tunza.music.channel.audio.v6',
+        androidNotificationChannelName: 'Tunza Audio Player',
+        androidNotificationOngoing: false,
+        androidStopForegroundOnPause: true,
+        androidShowNotificationBadge: true,
+        androidNotificationIcon: 'drawable/ic_notification',
+      ),
     );
     isBackgroundInitialized = true;
   } catch (e, stackTrace) {
-    debugPrint('JustAudioBackground init error: $e');
+    debugPrint('AudioService init error: $e');
     debugPrint('StackTrace: $stackTrace');
     backgroundInitError = '$e\n$stackTrace';
     isBackgroundInitialized = false;
@@ -93,11 +240,14 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
-  final AudioPlayer _audioPlayer = AudioPlayer();
+  static _MainScreenState? mainScreenState;
+  final AudioPlayer _audioPlayer = (audioHandler as MyAudioHandler).player;
   final OnAudioQuery _audioQuery = OnAudioQuery();
   final ScrollController _lyricsScrollController = ScrollController();
+  final ScrollController _detailScrollController = ScrollController();
   final ValueNotifier<int> _sleepTimerNotifier = ValueNotifier<int>(0);
   Timer? _sleepTimer;
+  bool _sleepAtEndOfTrack = false;
   bool _filterShortAudio = false;
   bool _autoRegexClean = false;
   int _crossfadeDuration = 150;
@@ -108,6 +258,9 @@ class _MainScreenState extends State<MainScreen> {
   bool _isLoading = true;
   bool _isPlayerOpen = false;
   bool _showLyrics = false;
+  String _playingFromType = 'LIBRARY';
+  String _playingFromName = 'All Songs';
+  String? _lastIncrementedTrackId;
 
   List<Track> _playbackQueue = [];
   List<int> _shuffledIndices = [];
@@ -160,11 +313,36 @@ class _MainScreenState extends State<MainScreen> {
       _crossfadeDuration = prefs.getInt('crossfadeDuration') ?? 150;
       _pauseOnDisconnect = prefs.getBool('pauseOnDisconnect') ?? true;
       _specificFolderScan = prefs.getString('specificFolderScan') ?? '';
+
+      final cachedSongsStr = prefs.getString('cached_tracks_list');
+      if (cachedSongsStr != null) {
+        try {
+          final List<dynamic> decodedList = jsonDecode(cachedSongsStr);
+          final loadedTracks = decodedList
+              .map((item) => Track.fromMap(Map<String, dynamic>.from(item)))
+              .toList();
+          if (loadedTracks.isNotEmpty) {
+            _allTracks = loadedTracks;
+            _playbackQueue = List.from(loadedTracks);
+            _isLoading = false;
+          }
+        } catch (_) {}
+      }
     });
   }
 
   void _startSleepTimer(int minutes) {
     _sleepTimer?.cancel();
+    if (minutes == -1) {
+      setState(() {
+        _sleepAtEndOfTrack = true;
+        _sleepTimerNotifier.value = -1;
+      });
+      return;
+    }
+    setState(() {
+      _sleepAtEndOfTrack = false;
+    });
     if (minutes <= 0) {
       _sleepTimerNotifier.value = 0;
       return;
@@ -175,7 +353,25 @@ class _MainScreenState extends State<MainScreen> {
         _sleepTimerNotifier.value--;
       } else {
         _sleepTimer?.cancel();
-        _audioPlayer.pause();
+        _pauseWithFade();
+      }
+    });
+  }
+
+  void _updatePlayingFrom() {
+    setState(() {
+      if (_selectedPlaylistDetail != null) {
+        _playingFromType = 'PLAYLIST';
+        _playingFromName = _selectedPlaylistDetail!;
+      } else if (_selectedArtistDetail != null) {
+        _playingFromType = 'ARTIST';
+        _playingFromName = _selectedArtistDetail!;
+      } else if (_selectedAlbumDetail != null) {
+        _playingFromType = 'ALBUM';
+        _playingFromName = _selectedAlbumDetail!;
+      } else {
+        _playingFromType = 'LIBRARY';
+        _playingFromName = 'All Songs';
       }
     });
   }
@@ -198,6 +394,7 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void initState() {
     super.initState();
+    mainScreenState = this;
     _pageController = PageController();
     _loadSettings();
     _requestPermissionAndScan();
@@ -268,6 +465,7 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void _setupAudioStreams() {
+    _audioPlayer.setLoopMode(_repeatMode == 2 ? LoopMode.one : LoopMode.off);
     _audioPlayer.playingStream.listen((playing) {
       if (mounted) setState(() => _isPlaying = playing);
     });
@@ -308,6 +506,48 @@ class _MainScreenState extends State<MainScreen> {
         } else {
           _audioPlayer.pause();
           _audioPlayer.seek(Duration.zero);
+        }
+      }
+    });
+
+    _audioPlayer.positionStream.listen((pos) {
+      if (_playingTrack != null &&
+          _lastIncrementedTrackId != _playingTrack!.id) {
+        final duration = _audioPlayer.duration ?? Duration.zero;
+        final trackDuration = Duration(milliseconds: _playingTrack!.duration);
+        final effectiveDuration = duration > Duration.zero
+            ? duration
+            : trackDuration;
+
+        bool shouldIncrement = pos.inSeconds >= 10;
+        if (!shouldIncrement && effectiveDuration > Duration.zero) {
+          if (effectiveDuration.inSeconds < 10 &&
+              pos >= effectiveDuration - const Duration(milliseconds: 500)) {
+            shouldIncrement = true;
+          }
+        }
+
+        if (shouldIncrement) {
+          _lastIncrementedTrackId = _playingTrack!.id;
+          setState(() {
+            _playCounts[_playingTrack!.id] =
+                (_playCounts[_playingTrack!.id] ?? 0) + 1;
+          });
+          SharedPreferences.getInstance().then((prefs) {
+            prefs.setString('play_counts', jsonEncode(_playCounts));
+          });
+        }
+      }
+
+      if (_sleepAtEndOfTrack) {
+        final duration = _audioPlayer.duration ?? Duration.zero;
+        if (duration > Duration.zero &&
+            pos >= duration - const Duration(milliseconds: 350)) {
+          setState(() {
+            _sleepAtEndOfTrack = false;
+            _sleepTimerNotifier.value = 0;
+          });
+          _pauseWithFade();
         }
       }
     });
@@ -495,12 +735,17 @@ class _MainScreenState extends State<MainScreen> {
               })
               .where((t) => !_hiddenTrackIds.contains(t.id))
               .toList();
+          if (_allTracks.isNotEmpty) {
+            final serialized = _allTracks.map((t) => t.toMap()).toList();
+            prefs.setString('cached_tracks_list', jsonEncode(serialized));
+          }
         }
       }
 
       if (mounted) {
         setState(() {
           _isLoading = false;
+          _cachedDetailKey = null;
         });
 
         if (_allTracks.isNotEmpty) {
@@ -513,7 +758,6 @@ class _MainScreenState extends State<MainScreen> {
           _isLoading = false;
         });
       }
-      _allTracks = [];
     }
   }
 
@@ -589,6 +833,120 @@ class _MainScreenState extends State<MainScreen> {
     return null;
   }
 
+  void _updateCurrentSourceSilently() async {
+    try {
+      if (_audioPlayer.audioSource is ConcatenatingAudioSource) {
+        final concatenating =
+            _audioPlayer.audioSource as ConcatenatingAudioSource;
+        int nextSourceIndexInConcatenating = _currentIndex > 0 ? 2 : 1;
+
+        if (_currentIndex + 1 < _playbackQueue.length) {
+          final nextTrack = _playbackQueue[_currentIndex + 1];
+          final nextUri = nextTrack.url.startsWith('/')
+              ? Uri.file(nextTrack.url)
+              : (Uri.tryParse(nextTrack.url) ?? Uri.parse(''));
+          final nextCover = await _getCoverUriForTrack(nextTrack);
+          final newNextSource = AudioSource.uri(
+            nextUri,
+            tag: MediaItem(
+              id: nextTrack.id,
+              album: nextTrack.album.trim().isEmpty
+                  ? 'Unknown Album'
+                  : nextTrack.album,
+              title: nextTrack.title.trim().isEmpty
+                  ? 'Unknown Title'
+                  : nextTrack.title,
+              artist: nextTrack.artist.trim().isEmpty
+                  ? 'Unknown Artist'
+                  : nextTrack.artist,
+              artUri: nextCover,
+              duration: Duration(milliseconds: nextTrack.duration),
+            ),
+          );
+
+          if (nextSourceIndexInConcatenating < concatenating.length) {
+            await concatenating.removeAt(nextSourceIndexInConcatenating);
+            await concatenating.insert(
+              nextSourceIndexInConcatenating,
+              newNextSource,
+            );
+          } else {
+            await concatenating.add(newNextSource);
+          }
+        } else {
+          if (nextSourceIndexInConcatenating < concatenating.length) {
+            await concatenating.removeAt(nextSourceIndexInConcatenating);
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  void _moveTrackInQueue(Track track, int targetIndex) {
+    setState(() {
+      final existingIndex = _playbackQueue.indexWhere((t) => t.id == track.id);
+      int adjustedTargetIndex = targetIndex;
+
+      if (existingIndex != -1) {
+        if (existingIndex == _currentIndex) {
+          return;
+        }
+
+        _playbackQueue.removeAt(existingIndex);
+
+        _shuffledIndices.remove(existingIndex);
+        for (int i = 0; i < _shuffledIndices.length; i++) {
+          if (_shuffledIndices[i] > existingIndex) {
+            _shuffledIndices[i]--;
+          }
+        }
+
+        if (existingIndex < _currentIndex) {
+          _currentIndex--;
+        }
+
+        if (adjustedTargetIndex > existingIndex) {
+          adjustedTargetIndex--;
+        }
+      }
+
+      if (adjustedTargetIndex > _playbackQueue.length) {
+        adjustedTargetIndex = _playbackQueue.length;
+      }
+      if (adjustedTargetIndex < 0) {
+        adjustedTargetIndex = 0;
+      }
+
+      _playbackQueue.insert(adjustedTargetIndex, track);
+
+      for (int i = 0; i < _shuffledIndices.length; i++) {
+        if (_shuffledIndices[i] >= adjustedTargetIndex) {
+          _shuffledIndices[i]++;
+        }
+      }
+
+      if (_isShuffle && _shuffledIndices.isNotEmpty) {
+        final currentShuffledPos = _shuffledIndices.indexOf(_currentIndex);
+        if (currentShuffledPos != -1) {
+          _shuffledIndices.insert(currentShuffledPos + 1, adjustedTargetIndex);
+        } else {
+          _shuffledIndices.add(adjustedTargetIndex);
+        }
+      } else {
+        _shuffledIndices = List.generate(_playbackQueue.length, (i) => i);
+      }
+    });
+
+    _updateCurrentSourceSilently();
+  }
+
+  void _toggleRepeatMode() {
+    setState(() {
+      _repeatMode = (_repeatMode + 1) % 3;
+      _audioPlayer.setLoopMode(_repeatMode == 2 ? LoopMode.one : LoopMode.off);
+    });
+  }
+
   Future<void> _playTrack(
     int index, {
     bool playImmediately = true,
@@ -622,6 +980,7 @@ class _MainScreenState extends State<MainScreen> {
     setState(() {
       _currentIndex = index;
       _playingTrack = track;
+      _lastIncrementedTrackId = null;
       if (_isShuffle && !queueMatches && sourceList != null) {
         _shuffledIndices.remove(_currentIndex);
         _shuffledIndices.insert(0, _currentIndex);
@@ -631,7 +990,6 @@ class _MainScreenState extends State<MainScreen> {
         _lastPlayedTrackIds.remove(track.id);
         _lastPlayedTrackIds.insert(0, track.id);
         if (_lastPlayedTrackIds.length > 100) _lastPlayedTrackIds.removeLast();
-        _playCounts[track.id] = (_playCounts[track.id] ?? 0) + 1;
       }
     });
 
@@ -641,7 +999,6 @@ class _MainScreenState extends State<MainScreen> {
       prefs.setString('last_playing_track_id', track.id);
       if (playImmediately) {
         prefs.setStringList('last_played_track_ids', _lastPlayedTrackIds);
-        prefs.setString('play_counts', jsonEncode(_playCounts));
       }
     });
 
@@ -660,6 +1017,7 @@ class _MainScreenState extends State<MainScreen> {
           title: track.title.trim().isEmpty ? 'Unknown Title' : track.title,
           artist: track.artist.trim().isEmpty ? 'Unknown Artist' : track.artist,
           artUri: currentCover,
+          duration: Duration(milliseconds: track.duration),
         ),
       );
 
@@ -693,6 +1051,7 @@ class _MainScreenState extends State<MainScreen> {
                     ? 'Unknown Artist'
                     : prevTrack.artist,
                 artUri: prevCover,
+                duration: Duration(milliseconds: prevTrack.duration),
               ),
             ),
           );
@@ -724,6 +1083,7 @@ class _MainScreenState extends State<MainScreen> {
                     ? 'Unknown Artist'
                     : nextTrack.artist,
                 artUri: nextCover,
+                duration: Duration(milliseconds: nextTrack.duration),
               ),
             ),
           );
@@ -941,6 +1301,7 @@ class _MainScreenState extends State<MainScreen> {
   void dispose() {
     _searchController.dispose();
     _lyricsScrollController.dispose();
+    _detailScrollController.dispose();
     _pageController.dispose();
     super.dispose();
   }
@@ -1332,18 +1693,42 @@ class _MainScreenState extends State<MainScreen> {
       ),
       builder: (context) {
         final List<int> effectiveIndices;
-        if (_isShuffle && _shuffledIndices.length == _playbackQueue.length) {
-          int pos = _shuffledIndices.indexOf(_currentIndex);
-          if (pos != -1) {
-            effectiveIndices = _shuffledIndices.sublist(pos);
+        if (_repeatMode == 2) {
+          effectiveIndices = [_currentIndex];
+        } else if (_repeatMode == 1) {
+          if (_isShuffle && _shuffledIndices.length == _playbackQueue.length) {
+            int pos = _shuffledIndices.indexOf(_currentIndex);
+            if (pos != -1) {
+              effectiveIndices = [
+                ..._shuffledIndices.sublist(pos),
+                ..._shuffledIndices.sublist(0, pos),
+              ];
+            } else {
+              effectiveIndices = _shuffledIndices;
+            }
           } else {
-            effectiveIndices = _shuffledIndices;
+            effectiveIndices = [
+              ...List.generate(
+                _playbackQueue.length - _currentIndex,
+                (i) => _currentIndex + i,
+              ),
+              ...List.generate(_currentIndex, (i) => i),
+            ];
           }
         } else {
-          effectiveIndices = List.generate(
-            _playbackQueue.length - _currentIndex,
-            (i) => _currentIndex + i,
-          );
+          if (_isShuffle && _shuffledIndices.length == _playbackQueue.length) {
+            int pos = _shuffledIndices.indexOf(_currentIndex);
+            if (pos != -1) {
+              effectiveIndices = _shuffledIndices.sublist(pos);
+            } else {
+              effectiveIndices = _shuffledIndices;
+            }
+          } else {
+            effectiveIndices = List.generate(
+              _playbackQueue.length - _currentIndex,
+              (i) => _currentIndex + i,
+            );
+          }
         }
 
         return Column(

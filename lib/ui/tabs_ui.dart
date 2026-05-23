@@ -264,6 +264,7 @@ extension _TabsUI on _MainScreenState {
     List<Track> list, {
     Widget? header,
     bool isMostPlayed = false,
+    ScrollController? controller,
   }) {
     if (list.isEmpty && header == null) {
       return Center(
@@ -277,6 +278,7 @@ extension _TabsUI on _MainScreenState {
       );
     }
     return ListView.builder(
+      controller: controller,
       physics: const BouncingScrollPhysics(),
       padding: EdgeInsets.only(
         left: 16,
@@ -306,7 +308,10 @@ extension _TabsUI on _MainScreenState {
               horizontal: 8,
               vertical: 2,
             ),
-            onTap: () => _playTrack(trackIndex, sourceList: list),
+            onTap: () {
+              _updatePlayingFrom();
+              _playTrack(trackIndex, sourceList: list);
+            },
             leading: _buildTrackArtwork(track, size: 44, radius: 6),
             title: Text(
               track.title,

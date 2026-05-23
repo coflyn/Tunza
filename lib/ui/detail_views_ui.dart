@@ -25,6 +25,9 @@ extension _DetailViewsUI on _MainScreenState {
         _cachedDetailSongs == null ||
         _cachedDetailImage == null) {
       _cachedDetailKey = currentKey;
+      if (_detailScrollController.hasClients) {
+        _detailScrollController.jumpTo(0);
+      }
       List<Track> pSongs = [];
       Widget? imageWidget;
 
@@ -155,6 +158,15 @@ extension _DetailViewsUI on _MainScreenState {
             _detailDragOffset +=
                 details.primaryDelta! / MediaQuery.of(context).size.height;
           });
+        } else if (details.primaryDelta! < 0) {
+          if (_detailScrollController.hasClients) {
+            _detailScrollController.jumpTo(
+              (_detailScrollController.offset - details.primaryDelta!).clamp(
+                0.0,
+                _detailScrollController.position.maxScrollExtent,
+              ),
+            );
+          }
         }
       },
       onVerticalDragEnd: (details) {
@@ -175,7 +187,45 @@ extension _DetailViewsUI on _MainScreenState {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            const SizedBox(height: 120),
+            Padding(
+              padding: const EdgeInsets.only(top: 48, left: 16, right: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  IconButton(
+                    icon: const Icon(
+                      Icons.keyboard_arrow_down,
+                      color: Colors.white,
+                      size: 28,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _selectedPlaylistDetail = null;
+                        _selectedArtistDetail = null;
+                        _selectedAlbumDetail = null;
+                      });
+                    },
+                  ),
+                  Container(
+                    width: 40,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(2.5),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(
+                      Icons.more_vert,
+                      color: Colors.white,
+                      size: 28,
+                    ),
+                    onPressed: () => _showDetailOptions(title, type, tracks),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
             Container(
               width: 220,
               height: 220,
@@ -231,6 +281,7 @@ extension _DetailViewsUI on _MainScreenState {
                     backgroundColor: const Color(0xFF1DB954),
                     onPressed: () {
                       if (tracks.isNotEmpty) {
+                        _updatePlayingFrom();
                         setState(() {
                           _playbackQueue = List.from(tracks);
                           _shuffledIndices.clear();
@@ -260,6 +311,7 @@ extension _DetailViewsUI on _MainScreenState {
                     ),
                     onPressed: () {
                       if (tracks.isNotEmpty) {
+                        _updatePlayingFrom();
                         final shuffledTracks = List<Track>.from(tracks)
                           ..shuffle();
                         _playTrack(0, sourceList: shuffledTracks);
@@ -307,32 +359,7 @@ extension _DetailViewsUI on _MainScreenState {
             tracks,
             header: header,
             isMostPlayed: title == 'Most Played',
-          ),
-          Positioned(
-            top: 48,
-            left: 16,
-            child: IconButton(
-              icon: const Icon(
-                Icons.arrow_back_ios_new,
-                color: Colors.white,
-                size: 24,
-              ),
-              onPressed: () {
-                setState(() {
-                  _selectedPlaylistDetail = null;
-                  _selectedArtistDetail = null;
-                  _selectedAlbumDetail = null;
-                });
-              },
-            ),
-          ),
-          Positioned(
-            top: 48,
-            right: 16,
-            child: IconButton(
-              icon: const Icon(Icons.more_vert, color: Colors.white, size: 28),
-              onPressed: () => _showDetailOptions(title, type, tracks),
-            ),
+            controller: _detailScrollController,
           ),
         ],
       ),

@@ -57,14 +57,16 @@ extension _ModalsUI on _MainScreenState {
                   _buildOptionItem(Icons.playlist_play, 'Play next', () {
                     Navigator.pop(context);
                     if (_playbackQueue.isNotEmpty) {
-                      _playbackQueue.insert(_currentIndex + 1, track);
+                      _moveTrackInQueue(track, _currentIndex + 1);
                       Fluttertoast.showToast(msg: "Added to play next");
                     }
                   }),
                   _buildOptionItem(Icons.queue_music, 'Add to queue', () {
                     Navigator.pop(context);
-                    _playbackQueue.add(track);
-                    Fluttertoast.showToast(msg: "Added to queue");
+                    if (_playbackQueue.isNotEmpty) {
+                      _moveTrackInQueue(track, _playbackQueue.length);
+                      Fluttertoast.showToast(msg: "Added to queue");
+                    }
                   }),
                   _buildOptionItem(Icons.playlist_add, 'Add to Playlist', () {
                     Navigator.pop(context);
@@ -88,7 +90,16 @@ extension _ModalsUI on _MainScreenState {
                   _buildOptionItem(Icons.album_outlined, 'Go to album', () {
                     Navigator.pop(context);
                     setState(() {
+                      _isPlayerOpen = false;
                       _selectedAlbumDetail = track.album;
+                      _searchQuery = '';
+                      _searchController.clear();
+                      final albumSongs = _allTracks
+                          .where((t) => t.album == track.album)
+                          .toList();
+                      _detailColorFuture = _getDetailColor(
+                        albumSongs.isNotEmpty ? albumSongs.first : null,
+                      );
                       _currentPageIndex = 3;
                       _pageController.animateToPage(
                         3,
@@ -100,7 +111,16 @@ extension _ModalsUI on _MainScreenState {
                   _buildOptionItem(Icons.person_outline, 'Go to artist', () {
                     Navigator.pop(context);
                     setState(() {
+                      _isPlayerOpen = false;
                       _selectedArtistDetail = track.artist;
+                      _searchQuery = '';
+                      _searchController.clear();
+                      final artistSongs = _allTracks
+                          .where((t) => t.artist == track.artist)
+                          .toList();
+                      _detailColorFuture = _getDetailColor(
+                        artistSongs.isNotEmpty ? artistSongs.first : null,
+                      );
                       _currentPageIndex = 2;
                       _pageController.animateToPage(
                         2,
@@ -127,6 +147,7 @@ extension _ModalsUI on _MainScreenState {
                       setState(() {
                         _allTracks.removeWhere((t) => t.id == track.id);
                         _playbackQueue.removeWhere((t) => t.id == track.id);
+                        _cachedDetailKey = null;
                       });
                       Fluttertoast.showToast(msg: "Track hidden from library");
                     },
@@ -143,6 +164,7 @@ extension _ModalsUI on _MainScreenState {
                           setState(() {
                             _allTracks.removeWhere((t) => t.id == track.id);
                             _playbackQueue.removeWhere((t) => t.id == track.id);
+                            _cachedDetailKey = null;
                           });
                           Fluttertoast.showToast(msg: "Track deleted");
                         } else {
@@ -197,6 +219,7 @@ extension _ModalsUI on _MainScreenState {
                                       _playbackQueue.removeWhere(
                                         (t) => t.id == track.id,
                                       );
+                                      _cachedDetailKey = null;
                                     });
                                     Fluttertoast.showToast(
                                       msg: "Track hidden from library",
@@ -442,22 +465,54 @@ extension _ModalsUI on _MainScreenState {
                         style: const TextStyle(color: Colors.white),
                       ),
                       onTap: () {
+                        int addedCount = 0;
+                        int skippedCount = 0;
                         setState(() {
                           for (final track in tracksToAdd) {
                             if (!_userPlaylists[playlistName]!.contains(
                               track.id,
                             )) {
                               _userPlaylists[playlistName]!.add(track.id);
+                              addedCount++;
+                            } else {
+                              skippedCount++;
                             }
                           }
-                          _cachedDetailKey = null;
-                          _saveUserPlaylists();
+                          if (addedCount > 0) {
+                            _cachedDetailKey = null;
+                            _saveUserPlaylists();
+                          }
                         });
                         Navigator.pop(context);
-                        Fluttertoast.showToast(
-                          msg:
-                              "Added ${tracksToAdd.length} songs to $playlistName",
-                        );
+                        if (tracksToAdd.length == 1) {
+                          if (skippedCount > 0) {
+                            Fluttertoast.showToast(
+                              msg:
+                                  "'${tracksToAdd.first.title}' is already in $playlistName",
+                            );
+                          } else {
+                            Fluttertoast.showToast(
+                              msg:
+                                  "Added '${tracksToAdd.first.title}' to $playlistName",
+                            );
+                          }
+                        } else {
+                          if (addedCount == 0) {
+                            Fluttertoast.showToast(
+                              msg:
+                                  "Selected songs are already in $playlistName",
+                            );
+                          } else if (skippedCount > 0) {
+                            Fluttertoast.showToast(
+                              msg:
+                                  "Added $addedCount songs to $playlistName ($skippedCount skipped)",
+                            );
+                          } else {
+                            Fluttertoast.showToast(
+                              msg: "Added $addedCount songs to $playlistName",
+                            );
+                          }
+                        }
                       },
                     );
                   }),
@@ -850,16 +905,22 @@ extension _ModalsUI on _MainScreenState {
               _buildOptionItem(Icons.playlist_play, 'Play Next', () {
                 Navigator.pop(context);
                 if (tracks.isNotEmpty) {
-                  _playbackQueue.insertAll(_currentIndex + 1, tracks);
+                  int insertPos = _currentIndex + 1;
+                  for (final track in tracks) {
+                    _moveTrackInQueue(track, insertPos);
+                    insertPos++;
+                  }
                   Fluttertoast.showToast(
-                    msg: "Added ${tracks.length} tracks to queue",
+                    msg: "Added ${tracks.length} tracks to play next",
                   );
                 }
               }),
               _buildOptionItem(Icons.queue_music, 'Add to Queue', () {
                 Navigator.pop(context);
                 if (tracks.isNotEmpty) {
-                  _playbackQueue.addAll(tracks);
+                  for (final track in tracks) {
+                    _moveTrackInQueue(track, _playbackQueue.length);
+                  }
                   Fluttertoast.showToast(
                     msg: "Added ${tracks.length} tracks to queue",
                   );
@@ -1034,43 +1095,52 @@ extension _ModalsUI on _MainScreenState {
   }
 
   void _showFullSleepTimerDialog(BuildContext context) {
-    showDialog(
+    showModalBottomSheet(
       context: context,
+      backgroundColor: const Color(0xFF161616),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      isScrollControlled: true,
       builder: (context) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF1E1E1E),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: const Text(
-            'Sleep Timer',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-          ),
-          content: Column(
+        return SafeArea(
+          child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildTimerOpt(context, 'Off', 0),
-              _buildTimerOpt(context, '15 Minutes', 15),
-              _buildTimerOpt(context, '30 Minutes', 30),
-              _buildTimerOpt(context, '60 Minutes', 60),
-              ListTile(
-                title: const Text(
-                  'Custom...',
-                  style: TextStyle(color: Colors.white),
+              const SizedBox(height: 12),
+              // Drag Handle
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
-                trailing: const Icon(
-                  Icons.edit,
-                  color: Colors.white54,
-                  size: 18,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                onTap: () {
-                  Navigator.pop(context);
-                  _showCustomTimerDialog(context);
-                },
               ),
+              const SizedBox(height: 16),
+              const Center(
+                child: Text(
+                  'Sleep timer',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Divider(color: Colors.white10, height: 1),
+              _buildTimerSheetOpt(context, '5 minutes', 5),
+              _buildTimerSheetOpt(context, '10 minutes', 10),
+              _buildTimerSheetOpt(context, '15 minutes', 15),
+              _buildTimerSheetOpt(context, '30 minutes', 30),
+              _buildTimerSheetOpt(context, '45 minutes', 45),
+              _buildTimerSheetOpt(context, '1 hour', 60),
+              _buildTimerSheetOpt(context, 'End of track', -1),
+              _buildTimerSheetOpt(context, 'Turn off', 0),
+              const SizedBox(height: 16),
             ],
           ),
         );
@@ -1078,10 +1148,17 @@ extension _ModalsUI on _MainScreenState {
     );
   }
 
-  Widget _buildTimerOpt(BuildContext context, String title, int minutes) {
+  Widget _buildTimerSheetOpt(BuildContext context, String label, int minutes) {
     return ListTile(
-      title: Text(title, style: const TextStyle(color: Colors.white)),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+      title: Text(
+        label,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 16,
+          fontWeight: FontWeight.w400,
+        ),
+      ),
       onTap: () {
         _startSleepTimer(minutes);
         Navigator.pop(context);

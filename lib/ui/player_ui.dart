@@ -416,14 +416,32 @@ extension _PlayerUI on _MainScreenState {
                                 ),
                               );
                             }
-                            return Text(
-                              _isPlaying ? 'Now Playing' : 'Paused',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                                color: Colors.white38,
-                                letterSpacing: 1.5,
-                              ),
+                            return Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  "PLAYING FROM $_playingFromType",
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 10,
+                                    color: Colors.white38,
+                                    letterSpacing: 1.5,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  _playingFromName,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                    color: Colors.white,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
                             );
                           },
                         ),
@@ -491,6 +509,18 @@ extension _PlayerUI on _MainScreenState {
                               ),
                             ],
                           ),
+                        ),
+                        IconButton(
+                          icon: Icon(
+                            _favoriteTrackIds.contains(currentTrack.id)
+                                ? Icons.favorite
+                                : Icons.favorite_border,
+                            color: _favoriteTrackIds.contains(currentTrack.id)
+                                ? const Color(0xFF1DB954)
+                                : Colors.white60,
+                            size: 26,
+                          ),
+                          onPressed: () => _toggleFavorite(currentTrack.id),
                         ),
                       ],
                     ),
@@ -747,11 +777,7 @@ extension _PlayerUI on _MainScreenState {
                                 : Colors.white54,
                             size: 20,
                           ),
-                          onPressed: () {
-                            setState(() {
-                              _repeatMode = (_repeatMode + 1) % 3;
-                            });
-                          },
+                          onPressed: _toggleRepeatMode,
                         ),
                         IconButton(
                           icon: const Icon(
@@ -773,58 +799,6 @@ extension _PlayerUI on _MainScreenState {
           ],
         ),
       ),
-    );
-  }
-
-  void _showCustomTimerDialog(BuildContext context) {
-    int customMinutes = 0;
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF1E1E1E),
-          title: const Text(
-            'Custom Timer (Minutes)',
-            style: TextStyle(color: Colors.white),
-          ),
-          content: TextField(
-            keyboardType: TextInputType.number,
-            style: const TextStyle(color: Colors.white),
-            decoration: const InputDecoration(
-              hintText: 'e.g. 120',
-              hintStyle: TextStyle(color: Colors.white38),
-              enabledBorder: UnderlineInputBorder(
-                borderSide: BorderSide(color: Colors.white38),
-              ),
-              focusedBorder: UnderlineInputBorder(
-                borderSide: BorderSide(color: Color(0xFF1DB954)),
-              ),
-            ),
-            onChanged: (val) {
-              customMinutes = int.tryParse(val) ?? 0;
-            },
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text(
-                'Cancel',
-                style: TextStyle(color: Colors.white54),
-              ),
-            ),
-            TextButton(
-              onPressed: () {
-                _startSleepTimer(customMinutes);
-                Navigator.pop(context);
-              },
-              child: const Text(
-                'Start',
-                style: TextStyle(color: Color(0xFF1DB954)),
-              ),
-            ),
-          ],
-        );
-      },
     );
   }
 }
