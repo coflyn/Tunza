@@ -43,6 +43,27 @@ extension _TabsUI on _MainScreenState {
           )
           .toList();
     }
+
+    if (_sortBy == 'title') {
+      songs.sort(
+        (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()),
+      );
+    } else if (_sortBy == 'artist') {
+      songs.sort(
+        (a, b) => a.artist.toLowerCase().compareTo(b.artist.toLowerCase()),
+      );
+    } else if (_sortBy == 'album') {
+      songs.sort(
+        (a, b) => a.album.toLowerCase().compareTo(b.album.toLowerCase()),
+      );
+    } else if (_sortBy == 'date_oldest') {
+      songs = songs.reversed.toList();
+    } else if (_sortBy == 'duration_longest') {
+      songs.sort((a, b) => b.duration.compareTo(a.duration));
+    } else if (_sortBy == 'duration_shortest') {
+      songs.sort((a, b) => a.duration.compareTo(b.duration));
+    }
+
     return _buildSongList(songs);
   }
 
@@ -84,17 +105,17 @@ extension _TabsUI on _MainScreenState {
             width: 56,
             height: 56,
             decoration: BoxDecoration(
-              color: const Color(0xFF1DB954).withValues(alpha: 0.2),
+              color: _activeAccentColor.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(Icons.add, color: Color(0xFF1DB954)),
+            child: Icon(Icons.add, color: _activeAccentColor),
           ),
-          title: const Text(
+          title: Text(
             'Create New Playlist',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
-              color: Color(0xFF1DB954),
+              color: _activeAccentColor,
             ),
           ),
           onTap: () => _showCreatePlaylistModal(context),
@@ -124,12 +145,14 @@ extension _TabsUI on _MainScreenState {
           Icons.local_fire_department,
         ),
         if (_userPlaylists.isNotEmpty)
-          const Padding(
-            padding: EdgeInsets.only(top: 16, bottom: 8, left: 8),
+          Padding(
+            padding: const EdgeInsets.only(top: 16, bottom: 8, left: 8),
             child: Text(
               'My Playlists',
               style: TextStyle(
-                color: Colors.white,
+                color: themeModeNotifier.value == 'light'
+                    ? const Color(0xFF1A1A1A)
+                    : Colors.white,
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
               ),
@@ -151,7 +174,53 @@ extension _TabsUI on _MainScreenState {
   }
 
   Widget _buildArtistsTab() {
-    final artists = _allTracks.map((t) => t.artist).toSet().toList();
+    final List<String> artists = [];
+    final seenArtists = <String>{};
+
+    if (_sortBy == 'date') {
+      for (final t in _allTracks) {
+        if (seenArtists.add(t.artist)) {
+          artists.add(t.artist);
+        }
+      }
+    } else if (_sortBy == 'date_oldest') {
+      for (final t in _allTracks.reversed) {
+        if (seenArtists.add(t.artist)) {
+          artists.add(t.artist);
+        }
+      }
+    } else if (_sortBy == 'duration_longest') {
+      final Map<String, int> maxDuration = {};
+      for (final t in _allTracks) {
+        final current = maxDuration[t.artist] ?? 0;
+        if (t.duration > current) {
+          maxDuration[t.artist] = t.duration;
+        }
+      }
+      final allUnique = _allTracks.map((t) => t.artist).toSet().toList();
+      allUnique.sort(
+        (a, b) => (maxDuration[b] ?? 0).compareTo(maxDuration[a] ?? 0),
+      );
+      artists.addAll(allUnique);
+    } else if (_sortBy == 'duration_shortest') {
+      final Map<String, int> minDuration = {};
+      for (final t in _allTracks) {
+        final current = minDuration[t.artist] ?? 99999999;
+        if (t.duration < current) {
+          minDuration[t.artist] = t.duration;
+        }
+      }
+      final allUnique = _allTracks.map((t) => t.artist).toSet().toList();
+      allUnique.sort(
+        (a, b) => (minDuration[a] ?? 0).compareTo(minDuration[b] ?? 0),
+      );
+      artists.addAll(allUnique);
+    } else {
+      final allUnique = _allTracks.map((t) => t.artist).toSet().toList()
+        ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+      artists.addAll(allUnique);
+    }
+
     if (_searchQuery.isNotEmpty) {
       artists.retainWhere(
         (a) => a.toLowerCase().contains(_searchQuery.toLowerCase()),
@@ -189,15 +258,28 @@ extension _TabsUI on _MainScreenState {
           leading: _buildTrackArtwork(firstTrack, size: 44, radius: 22),
           title: Text(
             artist,
-            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 15,
+              color: themeModeNotifier.value == 'light'
+                  ? const Color(0xFF1A1A1A)
+                  : Colors.white,
+            ),
           ),
           subtitle: Text(
             '$songCount songs',
-            style: const TextStyle(color: Colors.white38, fontSize: 12),
+            style: TextStyle(
+              color: themeModeNotifier.value == 'light'
+                  ? Colors.black45
+                  : Colors.white38,
+              fontSize: 12,
+            ),
           ),
-          trailing: const Icon(
+          trailing: Icon(
             Icons.arrow_forward_ios,
-            color: Colors.white24,
+            color: themeModeNotifier.value == 'light'
+                ? Colors.black26
+                : Colors.white24,
             size: 14,
           ),
         );
@@ -206,7 +288,53 @@ extension _TabsUI on _MainScreenState {
   }
 
   Widget _buildAlbumsTab() {
-    final albums = _allTracks.map((t) => t.album).toSet().toList();
+    final List<String> albums = [];
+    final seenAlbums = <String>{};
+
+    if (_sortBy == 'date') {
+      for (final t in _allTracks) {
+        if (seenAlbums.add(t.album)) {
+          albums.add(t.album);
+        }
+      }
+    } else if (_sortBy == 'date_oldest') {
+      for (final t in _allTracks.reversed) {
+        if (seenAlbums.add(t.album)) {
+          albums.add(t.album);
+        }
+      }
+    } else if (_sortBy == 'duration_longest') {
+      final Map<String, int> maxDuration = {};
+      for (final t in _allTracks) {
+        final current = maxDuration[t.album] ?? 0;
+        if (t.duration > current) {
+          maxDuration[t.album] = t.duration;
+        }
+      }
+      final allUnique = _allTracks.map((t) => t.album).toSet().toList();
+      allUnique.sort(
+        (a, b) => (maxDuration[b] ?? 0).compareTo(maxDuration[a] ?? 0),
+      );
+      albums.addAll(allUnique);
+    } else if (_sortBy == 'duration_shortest') {
+      final Map<String, int> minDuration = {};
+      for (final t in _allTracks) {
+        final current = minDuration[t.album] ?? 99999999;
+        if (t.duration < current) {
+          minDuration[t.album] = t.duration;
+        }
+      }
+      final allUnique = _allTracks.map((t) => t.album).toSet().toList();
+      allUnique.sort(
+        (a, b) => (minDuration[a] ?? 0).compareTo(minDuration[b] ?? 0),
+      );
+      albums.addAll(allUnique);
+    } else {
+      final allUnique = _allTracks.map((t) => t.album).toSet().toList()
+        ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+      albums.addAll(allUnique);
+    }
+
     if (_searchQuery.isNotEmpty) {
       albums.retainWhere(
         (a) => a.toLowerCase().contains(_searchQuery.toLowerCase()),
@@ -244,15 +372,28 @@ extension _TabsUI on _MainScreenState {
           leading: _buildTrackArtwork(firstTrack, size: 44, radius: 6),
           title: Text(
             album,
-            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 15,
+              color: themeModeNotifier.value == 'light'
+                  ? const Color(0xFF1A1A1A)
+                  : Colors.white,
+            ),
           ),
           subtitle: Text(
             '$songCount songs',
-            style: const TextStyle(color: Colors.white38, fontSize: 12),
+            style: TextStyle(
+              color: themeModeNotifier.value == 'light'
+                  ? Colors.black45
+                  : Colors.white38,
+              fontSize: 12,
+            ),
           ),
-          trailing: const Icon(
+          trailing: Icon(
             Icons.arrow_forward_ios,
-            color: Colors.white24,
+            color: themeModeNotifier.value == 'light'
+                ? Colors.black26
+                : Colors.white24,
             size: 14,
           ),
         );
@@ -320,7 +461,11 @@ extension _TabsUI on _MainScreenState {
               style: TextStyle(
                 fontWeight: FontWeight.w600,
                 fontSize: 14,
-                color: isSelected ? const Color(0xFF1DB954) : Colors.white,
+                color: isSelected
+                    ? _activeAccentColor
+                    : (themeModeNotifier.value == 'light'
+                          ? const Color(0xFF1A1A1A)
+                          : Colors.white),
               ),
             ),
             subtitle: Text(
@@ -329,7 +474,12 @@ extension _TabsUI on _MainScreenState {
                   : track.artist,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: Colors.white38, fontSize: 12),
+              style: TextStyle(
+                color: themeModeNotifier.value == 'light'
+                    ? Colors.black45
+                    : Colors.white38,
+                fontSize: 12,
+              ),
             ),
             trailing: Transform.translate(
               offset: const Offset(8, 0),
@@ -338,7 +488,7 @@ extension _TabsUI on _MainScreenState {
                 children: [
                   if (isSelected)
                     MiniMusicVisualizer(
-                      color: const Color(0xFF1DB954),
+                      color: _activeAccentColor,
                       width: 4,
                       height: 14,
                       radius: 2,
@@ -347,17 +497,21 @@ extension _TabsUI on _MainScreenState {
                   else
                     Text(
                       _formatDuration(Duration(milliseconds: track.duration)),
-                      style: const TextStyle(
-                        color: Colors.white38,
+                      style: TextStyle(
+                        color: themeModeNotifier.value == 'light'
+                            ? Colors.black45
+                            : Colors.white38,
                         fontSize: 12,
-                        fontFeatures: [FontFeature.tabularFigures()],
+                        fontFeatures: const [FontFeature.tabularFigures()],
                       ),
                     ),
                   const SizedBox(width: 8),
                   IconButton(
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.more_vert,
-                      color: Colors.white54,
+                      color: themeModeNotifier.value == 'light'
+                          ? Colors.black45
+                          : Colors.white54,
                       size: 20,
                     ),
                     padding: EdgeInsets.zero,
@@ -374,55 +528,80 @@ extension _TabsUI on _MainScreenState {
   }
 
   Widget _buildSearchBar() {
-    return Container(
-      height: 42,
-      margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
-      decoration: BoxDecoration(
-        color: const Color(0xFF161616),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: TextField(
-        controller: _searchController,
-        textAlignVertical: TextAlignVertical.center,
-        onChanged: (val) {
-          _searchQuery = val;
-          _filterSongs();
-        },
-        style: const TextStyle(fontSize: 14, color: Colors.white),
-        decoration: InputDecoration(
-          hintText: 'Search songs, artists, or albums...',
-          hintStyle: TextStyle(
-            color: Colors.white.withValues(alpha: 0.3),
-            fontSize: 13,
+    final isLight = themeModeNotifier.value == 'light';
+    final searchBgColor = isLight
+        ? Colors.black.withOpacity(0.05)
+        : const Color(0xFF161616);
+    final textColor = isLight ? const Color(0xFF1A1A1A) : Colors.white;
+    final hintColor = isLight
+        ? Colors.black38
+        : Colors.white.withValues(alpha: 0.3);
+    final iconColor = isLight ? Colors.black45 : Colors.white54;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              height: 42,
+              decoration: BoxDecoration(
+                color: searchBgColor,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: TextField(
+                controller: _searchController,
+                textAlignVertical: TextAlignVertical.center,
+                onChanged: (val) {
+                  _searchQuery = val;
+                  _filterSongs();
+                },
+                style: TextStyle(fontSize: 14, color: textColor),
+                decoration: InputDecoration(
+                  hintText: 'Search songs, artists, or albums...',
+                  hintStyle: TextStyle(color: hintColor, fontSize: 13),
+                  prefixIcon: Icon(Icons.search, color: iconColor, size: 20),
+                  suffixIcon: _searchQuery.isNotEmpty
+                      ? IconButton(
+                          icon: Icon(Icons.close, color: iconColor, size: 16),
+                          onPressed: () {
+                            _searchController.clear();
+                            _searchQuery = '';
+                            _filterSongs();
+                          },
+                        )
+                      : null,
+                  border: InputBorder.none,
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 11),
+                ),
+              ),
+            ),
           ),
-          prefixIcon: Icon(
-            Icons.search,
-            color: Colors.white.withValues(alpha: 0.3),
-            size: 20,
+          const SizedBox(width: 10),
+          GestureDetector(
+            onTap: () => _showSortModal(context),
+            child: Container(
+              height: 42,
+              width: 42,
+              decoration: BoxDecoration(
+                color: searchBgColor,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                Icons.sort_rounded,
+                color: isLight ? Colors.black87 : Colors.white70,
+                size: 20,
+              ),
+            ),
           ),
-          suffixIcon: _searchQuery.isNotEmpty
-              ? IconButton(
-                  icon: const Icon(
-                    Icons.close,
-                    color: Colors.white54,
-                    size: 16,
-                  ),
-                  onPressed: () {
-                    _searchController.clear();
-                    _searchQuery = '';
-                    _filterSongs();
-                  },
-                )
-              : null,
-          border: InputBorder.none,
-          isDense: true,
-          contentPadding: const EdgeInsets.symmetric(vertical: 11),
-        ),
+        ],
       ),
     );
   }
 
   Widget _buildFilterCapsules() {
+    final isLight = themeModeNotifier.value == 'light';
     final filters = ['Songs', 'Playlists', 'Artists', 'Albums'];
     return Padding(
       padding: const EdgeInsets.only(left: 24, right: 24, top: 16, bottom: 8),
@@ -448,14 +627,20 @@ extension _TabsUI on _MainScreenState {
                   ),
                   padding: const EdgeInsets.symmetric(vertical: 6),
                   decoration: BoxDecoration(
-                    color: isSelected ? Colors.white : const Color(0xFF161616),
+                    color: isSelected
+                        ? (isLight ? const Color(0xFF1A1A1A) : Colors.white)
+                        : (isLight
+                              ? Colors.black.withOpacity(0.05)
+                              : const Color(0xFF161616)),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Center(
                     child: Text(
                       filter,
                       style: TextStyle(
-                        color: isSelected ? Colors.black : Colors.white70,
+                        color: isSelected
+                            ? (isLight ? Colors.white : Colors.black)
+                            : (isLight ? Colors.black54 : Colors.white70),
                         fontWeight: FontWeight.w600,
                         fontSize: 12,
                       ),

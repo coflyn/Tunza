@@ -3,9 +3,12 @@ part of '../main.dart';
 
 extension _ModalsUI on _MainScreenState {
   void _showTrackOptions(BuildContext context, Track track) {
+    final isLight = themeModeNotifier.value == 'light';
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF161616),
+      backgroundColor: isLight
+          ? const Color(0xFFF0F0F3)
+          : const Color(0xFF161616),
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -30,19 +33,25 @@ extension _ModalsUI on _MainScreenState {
                             children: [
                               Text(
                                 track.title,
-                                style: const TextStyle(
-                                  color: Colors.white,
+                                style: TextStyle(
+                                  color: isLight
+                                      ? const Color(0xFF1A1A1A)
+                                      : Colors.white,
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
+                                  fontFamily: _activeFont,
                                 ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
                               Text(
                                 '${track.artist} • ${track.album}',
-                                style: const TextStyle(
-                                  color: Colors.white54,
+                                style: TextStyle(
+                                  color: isLight
+                                      ? Colors.black54
+                                      : Colors.white54,
                                   fontSize: 14,
+                                  fontFamily: _activeFont,
                                 ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -53,19 +62,24 @@ extension _ModalsUI on _MainScreenState {
                       ],
                     ),
                   ),
-                  const Divider(color: Colors.white10, height: 1),
+                  Divider(
+                    color: isLight
+                        ? Colors.black.withOpacity(0.08)
+                        : Colors.white10,
+                    height: 1,
+                  ),
                   _buildOptionItem(Icons.playlist_play, 'Play next', () {
                     Navigator.pop(context);
                     if (_playbackQueue.isNotEmpty) {
                       _moveTrackInQueue(track, _currentIndex + 1);
-                      Fluttertoast.showToast(msg: "Added to play next");
+                      showTunzaToast("Added to play next");
                     }
                   }),
                   _buildOptionItem(Icons.queue_music, 'Add to queue', () {
                     Navigator.pop(context);
                     if (_playbackQueue.isNotEmpty) {
                       _moveTrackInQueue(track, _playbackQueue.length);
-                      Fluttertoast.showToast(msg: "Added to queue");
+                      showTunzaToast("Added to queue");
                     }
                   }),
                   _buildOptionItem(Icons.playlist_add, 'Add to Playlist', () {
@@ -76,6 +90,10 @@ extension _ModalsUI on _MainScreenState {
                     Navigator.pop(context);
                     _showFullSleepTimerDialog(context);
                   }),
+                  _buildOptionItem(Icons.equalizer_rounded, 'Equalizer', () {
+                    Navigator.pop(context);
+                    MainScreen.showEqualizer(context);
+                  }),
                   _buildOptionItem(
                     isFavorited ? Icons.favorite : Icons.favorite_border,
                     'Favourite',
@@ -84,8 +102,8 @@ extension _ModalsUI on _MainScreenState {
                       setModalState(() {});
                     },
                     iconColor: isFavorited
-                        ? const Color(0xFF1DB954)
-                        : Colors.white,
+                        ? _activeAccentColor
+                        : (isLight ? Colors.black54 : Colors.white70),
                   ),
                   _buildOptionItem(Icons.album_outlined, 'Go to album', () {
                     Navigator.pop(context);
@@ -149,7 +167,7 @@ extension _ModalsUI on _MainScreenState {
                         _playbackQueue.removeWhere((t) => t.id == track.id);
                         _cachedDetailKey = null;
                       });
-                      Fluttertoast.showToast(msg: "Track hidden from library");
+                      showTunzaToast("Track hidden from library");
                     },
                   ),
                   _buildOptionItem(
@@ -166,40 +184,54 @@ extension _ModalsUI on _MainScreenState {
                             _playbackQueue.removeWhere((t) => t.id == track.id);
                             _cachedDetailKey = null;
                           });
-                          Fluttertoast.showToast(msg: "Track deleted");
+                          showTunzaToast("Track deleted");
                         } else {
-                          Fluttertoast.showToast(msg: "File not found");
+                          showTunzaToast("File not found");
                         }
                       } catch (e) {
                         if (!context.mounted) return;
                         showDialog(
                           context: context,
                           builder: (context) {
+                            final isLight = themeModeNotifier.value == 'light';
                             return AlertDialog(
-                              backgroundColor: const Color(0xFF161616),
+                              backgroundColor: isLight
+                                  ? const Color(0xFFF0F0F3)
+                                  : const Color(0xFF161616),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(16),
                               ),
-                              title: const Text(
+                              title: Text(
                                 'Permission Denied',
                                 style: TextStyle(
-                                  color: Colors.white,
+                                  color: isLight
+                                      ? const Color(0xFF1A1A1A)
+                                      : Colors.white,
                                   fontWeight: FontWeight.bold,
+                                  fontFamily: _activeFont,
                                 ),
                               ),
-                              content: const Text(
+                              content: Text(
                                 'Android Scoped Storage prevents Tunza from directly deleting files in your device storage.\n\nWould you like to hide this track from your Tunza library instead?',
                                 style: TextStyle(
-                                  color: Colors.white70,
+                                  color: isLight
+                                      ? Colors.black54
+                                      : Colors.white70,
                                   height: 1.4,
+                                  fontFamily: _activeFont,
                                 ),
                               ),
                               actions: [
                                 TextButton(
                                   onPressed: () => Navigator.pop(context),
-                                  child: const Text(
+                                  child: Text(
                                     'Cancel',
-                                    style: TextStyle(color: Colors.white54),
+                                    style: TextStyle(
+                                      color: isLight
+                                          ? Colors.black45
+                                          : Colors.white54,
+                                      fontFamily: _activeFont,
+                                    ),
                                   ),
                                 ),
                                 TextButton(
@@ -221,15 +253,14 @@ extension _ModalsUI on _MainScreenState {
                                       );
                                       _cachedDetailKey = null;
                                     });
-                                    Fluttertoast.showToast(
-                                      msg: "Track hidden from library",
-                                    );
+                                    showTunzaToast("Track hidden from library");
                                   },
-                                  child: const Text(
+                                  child: Text(
                                     'Hide Track',
                                     style: TextStyle(
-                                      color: Color(0xFF1DB954),
+                                      color: _activeAccentColor,
                                       fontWeight: FontWeight.bold,
+                                      fontFamily: _activeFont,
                                     ),
                                   ),
                                 ),
@@ -258,10 +289,14 @@ extension _ModalsUI on _MainScreenState {
   }) {
     Set<String> selectedTrackIds = {};
 
+    final isLight = themeModeNotifier.value == 'light';
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF161616),
+      backgroundColor: isLight
+          ? const Color(0xFFF0F0F3)
+          : const Color(0xFF161616),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -281,7 +316,7 @@ extension _ModalsUI on _MainScreenState {
                       width: 40,
                       height: 4,
                       decoration: BoxDecoration(
-                        color: Colors.white24,
+                        color: isLight ? Colors.black12 : Colors.white24,
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
@@ -291,12 +326,15 @@ extension _ModalsUI on _MainScreenState {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
+                          Text(
                             'Select Songs',
                             style: TextStyle(
-                              color: Colors.white,
+                              color: isLight
+                                  ? const Color(0xFF1A1A1A)
+                                  : Colors.white,
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
+                              fontFamily: _activeFont,
                             ),
                           ),
                           TextButton(
@@ -317,12 +355,10 @@ extension _ModalsUI on _MainScreenState {
                                         _cachedDetailKey = null;
                                         _saveUserPlaylists();
                                       });
-                                      Fluttertoast.showToast(
-                                        msg:
-                                            "Added ${selectedTrackIds.length} songs to $predefinedTargetPlaylist",
+                                      showTunzaToast(
+                                        "Added ${selectedTrackIds.length} songs to $predefinedTargetPlaylist",
                                       );
                                     } else {
-                                      // Prompt for playlist selection
                                       _showAddToPlaylistModal(
                                         context,
                                         selectedTracks,
@@ -335,16 +371,23 @@ extension _ModalsUI on _MainScreenState {
                                   : 'Next',
                               style: TextStyle(
                                 color: selectedTrackIds.isEmpty
-                                    ? Colors.white24
-                                    : const Color(0xFF1DB954),
+                                    ? (isLight
+                                          ? Colors.black12
+                                          : Colors.white24)
+                                    : _activeAccentColor,
                                 fontWeight: FontWeight.bold,
+                                fontFamily: _activeFont,
                               ),
                             ),
                           ),
                         ],
                       ),
                     ),
-                    const Divider(color: Colors.white10),
+                    Divider(
+                      color: isLight
+                          ? Colors.black.withOpacity(0.08)
+                          : Colors.white10,
+                    ),
                     Expanded(
                       child: ListView.builder(
                         controller: scrollController,
@@ -364,21 +407,29 @@ extension _ModalsUI on _MainScreenState {
                               track.title,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(color: Colors.white),
+                              style: TextStyle(
+                                color: isLight
+                                    ? const Color(0xFF1A1A1A)
+                                    : Colors.white,
+                                fontFamily: _activeFont,
+                              ),
                             ),
                             subtitle: Text(
                               track.artist,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Colors.white54,
+                              style: TextStyle(
+                                color: isLight
+                                    ? Colors.black54
+                                    : Colors.white54,
                                 fontSize: 12,
+                                fontFamily: _activeFont,
                               ),
                             ),
                             trailing: Checkbox(
                               value: isSelected,
-                              activeColor: const Color(0xFF1DB954),
-                              checkColor: Colors.black,
+                              activeColor: _activeAccentColor,
+                              checkColor: isLight ? Colors.white : Colors.black,
                               onChanged: (val) {
                                 setModalState(() {
                                   if (val == true) {
@@ -412,10 +463,351 @@ extension _ModalsUI on _MainScreenState {
     );
   }
 
-  void _showAddToPlaylistModal(BuildContext context, List<Track> tracksToAdd) {
+  void _showEditPlaylistSongsModal(BuildContext context, String playlistName) {
+    final trackIds = _userPlaylists[playlistName] ?? <String>[];
+    final playlistSongs = _allTracks
+        .where((t) => trackIds.contains(t.id))
+        .toList();
+
+    Set<String> selectedForDeletion = {};
+    final isLight = themeModeNotifier.value == 'light';
+
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF161616),
+      isScrollControlled: true,
+      backgroundColor: isLight
+          ? const Color(0xFFF0F0F3)
+          : const Color(0xFF161616),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final hasSelection = selectedForDeletion.isNotEmpty;
+            final isAllSelected =
+                playlistSongs.isNotEmpty &&
+                selectedForDeletion.length == playlistSongs.length;
+
+            return DraggableScrollableSheet(
+              initialChildSize: 0.9,
+              minChildSize: 0.5,
+              maxChildSize: 0.9,
+              expand: false,
+              builder: (_, scrollController) {
+                return Column(
+                  children: [
+                    const SizedBox(height: 16),
+                    Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: isLight ? Colors.black12 : Colors.white24,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Edit "$playlistName"',
+                              style: TextStyle(
+                                color: isLight
+                                    ? const Color(0xFF1A1A1A)
+                                    : Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                fontFamily: _activeFont,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              Navigator.pop(context);
+                            },
+                            child: Text(
+                              'Done',
+                              style: TextStyle(
+                                color: _activeAccentColor,
+                                fontWeight: FontWeight.bold,
+                                fontFamily: _activeFont,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Divider(
+                      color: isLight
+                          ? Colors.black.withOpacity(0.08)
+                          : Colors.white10,
+                    ),
+
+                    // Toolbar for Add Songs, Select All, and Delete
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 8,
+                      ),
+                      child: Row(
+                        children: [
+                          // Add Songs Pill
+                          OutlinedButton.icon(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              _showMultiSelectSongsModal(
+                                context,
+                                candidateTracks: _allTracks,
+                                predefinedTargetPlaylist: playlistName,
+                              );
+                            },
+                            icon: Icon(
+                              Icons.add,
+                              size: 16,
+                              color: isLight ? Colors.black87 : Colors.white,
+                            ),
+                            label: Text(
+                              'Add Songs',
+                              style: TextStyle(
+                                color: isLight ? Colors.black87 : Colors.white,
+                                fontSize: 12,
+                                fontFamily: _activeFont,
+                              ),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(
+                                color: isLight
+                                    ? Colors.black12
+                                    : Colors.white24,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 8,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          // Select All text
+                          TextButton(
+                            onPressed: playlistSongs.isEmpty
+                                ? null
+                                : () {
+                                    setModalState(() {
+                                      if (isAllSelected) {
+                                        selectedForDeletion.clear();
+                                      } else {
+                                        selectedForDeletion = playlistSongs
+                                            .map((t) => t.id)
+                                            .toSet();
+                                      }
+                                    });
+                                  },
+                            child: Text(
+                              isAllSelected ? 'Deselect All' : 'Select All',
+                              style: TextStyle(
+                                color: isLight
+                                    ? Colors.black54
+                                    : Colors.white70,
+                                fontSize: 12,
+                                fontFamily: _activeFont,
+                              ),
+                            ),
+                          ),
+                          const Spacer(),
+                          // Delete Selected button (trash bin)
+                          IconButton(
+                            onPressed: !hasSelection
+                                ? null
+                                : () {
+                                    showDialog(
+                                      context: context,
+                                      builder: (ctx) => AlertDialog(
+                                        backgroundColor: isLight
+                                            ? const Color(0xFFF0F0F3)
+                                            : const Color(0xFF1E1E1E),
+                                        title: Text(
+                                          'Remove Songs?',
+                                          style: TextStyle(
+                                            color: isLight
+                                                ? const Color(0xFF1A1A1A)
+                                                : Colors.white,
+                                            fontFamily: _activeFont,
+                                          ),
+                                        ),
+                                        content: Text(
+                                          'Are you sure you want to remove ${selectedForDeletion.length} songs from "$playlistName"?',
+                                          style: TextStyle(
+                                            color: isLight
+                                                ? Colors.black54
+                                                : Colors.white70,
+                                            fontFamily: _activeFont,
+                                          ),
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () => Navigator.pop(ctx),
+                                            child: Text(
+                                              'Cancel',
+                                              style: TextStyle(
+                                                color: isLight
+                                                    ? Colors.black38
+                                                    : Colors.white38,
+                                                fontFamily: _activeFont,
+                                              ),
+                                            ),
+                                          ),
+                                          TextButton(
+                                            onPressed: () {
+                                              Navigator.pop(ctx);
+                                              setState(() {
+                                                _userPlaylists[playlistName]!
+                                                    .removeWhere(
+                                                      (id) =>
+                                                          selectedForDeletion
+                                                              .contains(id),
+                                                    );
+                                                _cachedDetailKey = null;
+                                                _saveUserPlaylists();
+                                              });
+                                              Navigator.pop(
+                                                context,
+                                              ); // Close sheet
+                                              showTunzaToast(
+                                                'Removed ${selectedForDeletion.length} songs',
+                                              );
+                                            },
+                                            child: Text(
+                                              'Remove',
+                                              style: TextStyle(
+                                                color: Colors.redAccent,
+                                                fontWeight: FontWeight.bold,
+                                                fontFamily: _activeFont,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                            icon: Icon(
+                              Icons.delete_outline,
+                              color: hasSelection
+                                  ? Colors.redAccent
+                                  : (isLight ? Colors.black12 : Colors.white24),
+                            ),
+                            tooltip: 'Delete Selected',
+                          ),
+                        ],
+                      ),
+                    ),
+                    Divider(
+                      color: isLight
+                          ? Colors.black.withOpacity(0.08)
+                          : Colors.white10,
+                    ),
+
+                    Expanded(
+                      child: playlistSongs.isEmpty
+                          ? Center(
+                              child: Text(
+                                'No songs in playlist',
+                                style: TextStyle(
+                                  color: isLight
+                                      ? Colors.black38
+                                      : Colors.white30,
+                                  fontFamily: _activeFont,
+                                ),
+                              ),
+                            )
+                          : ListView.builder(
+                              controller: scrollController,
+                              itemCount: playlistSongs.length,
+                              itemBuilder: (context, index) {
+                                final track = playlistSongs[index];
+                                final isSelected = selectedForDeletion.contains(
+                                  track.id,
+                                );
+                                return ListTile(
+                                  onTap: () {
+                                    setModalState(() {
+                                      if (isSelected) {
+                                        selectedForDeletion.remove(track.id);
+                                      } else {
+                                        selectedForDeletion.add(track.id);
+                                      }
+                                    });
+                                  },
+                                  leading: _buildTrackArtwork(
+                                    track,
+                                    size: 44,
+                                    radius: 6,
+                                  ),
+                                  title: Text(
+                                    track.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: isLight
+                                          ? const Color(0xFF1A1A1A)
+                                          : Colors.white,
+                                      fontFamily: _activeFont,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    track.artist,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: isLight
+                                          ? Colors.black54
+                                          : Colors.white54,
+                                      fontSize: 12,
+                                      fontFamily: _activeFont,
+                                    ),
+                                  ),
+                                  trailing: Checkbox(
+                                    value: isSelected,
+                                    activeColor: Colors.redAccent,
+                                    onChanged: (val) {
+                                      setModalState(() {
+                                        if (isSelected) {
+                                          selectedForDeletion.remove(track.id);
+                                        } else {
+                                          selectedForDeletion.add(track.id);
+                                        }
+                                      });
+                                    },
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showAddToPlaylistModal(BuildContext context, List<Track> tracksToAdd) {
+    final isLight = themeModeNotifier.value == 'light';
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: isLight
+          ? const Color(0xFFF0F0F3)
+          : const Color(0xFF161616),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -426,23 +818,32 @@ extension _ModalsUI on _MainScreenState {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Padding(
-                    padding: EdgeInsets.all(16.0),
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
                     child: Text(
                       'Add to Playlist',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: isLight ? const Color(0xFF1A1A1A) : Colors.white,
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
+                        fontFamily: _activeFont,
                       ),
                     ),
                   ),
-                  const Divider(color: Colors.white10, height: 1),
+                  Divider(
+                    color: isLight
+                        ? Colors.black.withOpacity(0.08)
+                        : Colors.white10,
+                    height: 1,
+                  ),
                   ListTile(
-                    leading: const Icon(Icons.add, color: Color(0xFF1DB954)),
-                    title: const Text(
+                    leading: Icon(Icons.add, color: _activeAccentColor),
+                    title: Text(
                       'Create New Playlist',
-                      style: TextStyle(color: Color(0xFF1DB954)),
+                      style: TextStyle(
+                        color: _activeAccentColor,
+                        fontFamily: _activeFont,
+                      ),
                     ),
                     onTap: () {
                       Navigator.pop(context);
@@ -453,16 +854,26 @@ extension _ModalsUI on _MainScreenState {
                     },
                   ),
                   if (_userPlaylists.isNotEmpty)
-                    const Divider(color: Colors.white10, height: 1),
+                    Divider(
+                      color: isLight
+                          ? Colors.black.withOpacity(0.08)
+                          : Colors.white10,
+                      height: 1,
+                    ),
                   ..._userPlaylists.keys.map((playlistName) {
                     return ListTile(
-                      leading: const Icon(
+                      leading: Icon(
                         Icons.queue_music,
-                        color: Colors.white,
+                        color: isLight ? Colors.black54 : Colors.white70,
                       ),
                       title: Text(
                         playlistName,
-                        style: const TextStyle(color: Colors.white),
+                        style: TextStyle(
+                          color: isLight
+                              ? const Color(0xFF1A1A1A)
+                              : Colors.white,
+                          fontFamily: _activeFont,
+                        ),
                       ),
                       onTap: () {
                         int addedCount = 0;
@@ -486,30 +897,26 @@ extension _ModalsUI on _MainScreenState {
                         Navigator.pop(context);
                         if (tracksToAdd.length == 1) {
                           if (skippedCount > 0) {
-                            Fluttertoast.showToast(
-                              msg:
-                                  "'${tracksToAdd.first.title}' is already in $playlistName",
+                            showTunzaToast(
+                              "'${tracksToAdd.first.title}' is already in $playlistName",
                             );
                           } else {
-                            Fluttertoast.showToast(
-                              msg:
-                                  "Added '${tracksToAdd.first.title}' to $playlistName",
+                            showTunzaToast(
+                              "Added '${tracksToAdd.first.title}' to $playlistName",
                             );
                           }
                         } else {
                           if (addedCount == 0) {
-                            Fluttertoast.showToast(
-                              msg:
-                                  "Selected songs are already in $playlistName",
+                            showTunzaToast(
+                              "Selected songs are already in $playlistName",
                             );
                           } else if (skippedCount > 0) {
-                            Fluttertoast.showToast(
-                              msg:
-                                  "Added $addedCount songs to $playlistName ($skippedCount skipped)",
+                            showTunzaToast(
+                              "Added $addedCount songs to $playlistName ($skippedCount skipped)",
                             );
                           } else {
-                            Fluttertoast.showToast(
-                              msg: "Added $addedCount songs to $playlistName",
+                            showTunzaToast(
+                              "Added $addedCount songs to $playlistName",
                             );
                           }
                         }
@@ -531,35 +938,52 @@ extension _ModalsUI on _MainScreenState {
     List<Track>? tracksToAdd,
   }) {
     final TextEditingController nameController = TextEditingController();
+    final isLight = themeModeNotifier.value == 'light';
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
-          backgroundColor: const Color(0xFF282828),
-          title: const Text(
+          backgroundColor: isLight
+              ? const Color(0xFFF0F0F3)
+              : const Color(0xFF282828),
+          title: Text(
             'New Playlist',
-            style: TextStyle(color: Colors.white),
+            style: TextStyle(
+              color: isLight ? const Color(0xFF1A1A1A) : Colors.white,
+              fontFamily: _activeFont,
+            ),
           ),
           content: TextField(
             controller: nameController,
-            style: const TextStyle(color: Colors.white),
-            decoration: const InputDecoration(
+            style: TextStyle(
+              color: isLight ? const Color(0xFF1A1A1A) : Colors.white,
+              fontFamily: _activeFont,
+            ),
+            decoration: InputDecoration(
               hintText: 'Playlist name',
-              hintStyle: TextStyle(color: Colors.white54),
+              hintStyle: TextStyle(
+                color: isLight ? Colors.black38 : Colors.white54,
+                fontFamily: _activeFont,
+              ),
               enabledBorder: UnderlineInputBorder(
-                borderSide: BorderSide(color: Colors.white24),
+                borderSide: BorderSide(
+                  color: isLight ? Colors.black12 : Colors.white24,
+                ),
               ),
               focusedBorder: UnderlineInputBorder(
-                borderSide: BorderSide(color: Color(0xFF1DB954)),
+                borderSide: BorderSide(color: _activeAccentColor),
               ),
             ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text(
+              child: Text(
                 'Cancel',
-                style: TextStyle(color: Colors.white54),
+                style: TextStyle(
+                  color: isLight ? Colors.black45 : Colors.white54,
+                  fontFamily: _activeFont,
+                ),
               ),
             ),
             TextButton(
@@ -574,12 +998,16 @@ extension _ModalsUI on _MainScreenState {
                     _saveUserPlaylists();
                   });
                   Navigator.pop(context);
-                  Fluttertoast.showToast(msg: "Playlist '$name' created");
+                  showTunzaToast("Playlist '$name' created");
                 }
               },
-              child: const Text(
+              child: Text(
                 'Create',
-                style: TextStyle(color: Color(0xFF1DB954)),
+                style: TextStyle(
+                  color: _activeAccentColor,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: _activeFont,
+                ),
               ),
             ),
           ],
@@ -601,9 +1029,13 @@ extension _ModalsUI on _MainScreenState {
 
     String? currentCoverPath = _metadataOverrides[track.id]?['coverPath'];
 
+    final isLight = themeModeNotifier.value == 'light';
+
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF161616),
+      backgroundColor: isLight
+          ? const Color(0xFFF0F0F3)
+          : const Color(0xFF161616),
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -622,12 +1054,15 @@ extension _ModalsUI on _MainScreenState {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Edit Metadata',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: isLight
+                              ? const Color(0xFF1A1A1A)
+                              : Colors.white,
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
+                          fontFamily: _activeFont,
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -647,7 +1082,9 @@ extension _ModalsUI on _MainScreenState {
                             width: 120,
                             height: 120,
                             decoration: BoxDecoration(
-                              color: Colors.white10,
+                              color: isLight
+                                  ? Colors.black.withOpacity(0.05)
+                                  : Colors.white10,
                               borderRadius: BorderRadius.circular(12),
                               image: currentCoverPath != null
                                   ? DecorationImage(
@@ -660,9 +1097,11 @@ extension _ModalsUI on _MainScreenState {
                                   : null,
                             ),
                             child: currentCoverPath == null
-                                ? const Icon(
+                                ? Icon(
                                     Icons.add_a_photo,
-                                    color: Colors.white54,
+                                    color: isLight
+                                        ? Colors.black45
+                                        : Colors.white54,
                                     size: 40,
                                   )
                                 : null,
@@ -672,45 +1111,75 @@ extension _ModalsUI on _MainScreenState {
                       const SizedBox(height: 16),
                       TextField(
                         controller: titleController,
-                        style: const TextStyle(color: Colors.white),
-                        decoration: const InputDecoration(
+                        style: TextStyle(
+                          color: isLight
+                              ? const Color(0xFF1A1A1A)
+                              : Colors.white,
+                          fontFamily: _activeFont,
+                        ),
+                        decoration: InputDecoration(
                           labelText: 'Title',
-                          labelStyle: TextStyle(color: Colors.white54),
+                          labelStyle: TextStyle(
+                            color: isLight ? Colors.black54 : Colors.white54,
+                            fontFamily: _activeFont,
+                          ),
                           enabledBorder: UnderlineInputBorder(
-                            borderSide: BorderSide(color: Colors.white24),
+                            borderSide: BorderSide(
+                              color: isLight ? Colors.black12 : Colors.white24,
+                            ),
                           ),
                           focusedBorder: UnderlineInputBorder(
-                            borderSide: BorderSide(color: Color(0xFF1DB954)),
+                            borderSide: BorderSide(color: _activeAccentColor),
                           ),
                         ),
                       ),
                       const SizedBox(height: 8),
                       TextField(
                         controller: artistController,
-                        style: const TextStyle(color: Colors.white),
-                        decoration: const InputDecoration(
+                        style: TextStyle(
+                          color: isLight
+                              ? const Color(0xFF1A1A1A)
+                              : Colors.white,
+                          fontFamily: _activeFont,
+                        ),
+                        decoration: InputDecoration(
                           labelText: 'Artist',
-                          labelStyle: TextStyle(color: Colors.white54),
+                          labelStyle: TextStyle(
+                            color: isLight ? Colors.black54 : Colors.white54,
+                            fontFamily: _activeFont,
+                          ),
                           enabledBorder: UnderlineInputBorder(
-                            borderSide: BorderSide(color: Colors.white24),
+                            borderSide: BorderSide(
+                              color: isLight ? Colors.black12 : Colors.white24,
+                            ),
                           ),
                           focusedBorder: UnderlineInputBorder(
-                            borderSide: BorderSide(color: Color(0xFF1DB954)),
+                            borderSide: BorderSide(color: _activeAccentColor),
                           ),
                         ),
                       ),
                       const SizedBox(height: 8),
                       TextField(
                         controller: albumController,
-                        style: const TextStyle(color: Colors.white),
-                        decoration: const InputDecoration(
+                        style: TextStyle(
+                          color: isLight
+                              ? const Color(0xFF1A1A1A)
+                              : Colors.white,
+                          fontFamily: _activeFont,
+                        ),
+                        decoration: InputDecoration(
                           labelText: 'Album',
-                          labelStyle: TextStyle(color: Colors.white54),
+                          labelStyle: TextStyle(
+                            color: isLight ? Colors.black54 : Colors.white54,
+                            fontFamily: _activeFont,
+                          ),
                           enabledBorder: UnderlineInputBorder(
-                            borderSide: BorderSide(color: Colors.white24),
+                            borderSide: BorderSide(
+                              color: isLight ? Colors.black12 : Colors.white24,
+                            ),
                           ),
                           focusedBorder: UnderlineInputBorder(
-                            borderSide: BorderSide(color: Color(0xFF1DB954)),
+                            borderSide: BorderSide(color: _activeAccentColor),
                           ),
                         ),
                       ),
@@ -720,15 +1189,21 @@ extension _ModalsUI on _MainScreenState {
                         children: [
                           TextButton(
                             onPressed: () => Navigator.pop(context),
-                            child: const Text(
+                            child: Text(
                               'Cancel',
-                              style: TextStyle(color: Colors.white54),
+                              style: TextStyle(
+                                color: isLight
+                                    ? Colors.black54
+                                    : Colors.white54,
+                                fontFamily: _activeFont,
+                              ),
                             ),
                           ),
                           const SizedBox(width: 8),
                           ElevatedButton(
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF1DB954),
+                              backgroundColor: _activeAccentColor,
+                              foregroundColor: Colors.white,
                             ),
                             onPressed: () {
                               setState(() {
@@ -771,9 +1246,7 @@ extension _ModalsUI on _MainScreenState {
                               });
                               _saveMetadataOverrides();
                               Navigator.pop(context);
-                              Fluttertoast.showToast(
-                                msg: "Metadata updated locally",
-                              );
+                              showTunzaToast("Metadata updated locally");
                             },
                             child: const Text(
                               'Save',
@@ -797,35 +1270,52 @@ extension _ModalsUI on _MainScreenState {
     final TextEditingController nameController = TextEditingController(
       text: oldName,
     );
+    final isLight = themeModeNotifier.value == 'light';
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
-          backgroundColor: const Color(0xFF282828),
-          title: const Text(
+          backgroundColor: isLight
+              ? const Color(0xFFF0F0F3)
+              : const Color(0xFF282828),
+          title: Text(
             'Rename Playlist',
-            style: TextStyle(color: Colors.white),
+            style: TextStyle(
+              color: isLight ? const Color(0xFF1A1A1A) : Colors.white,
+              fontFamily: _activeFont,
+            ),
           ),
           content: TextField(
             controller: nameController,
-            style: const TextStyle(color: Colors.white),
-            decoration: const InputDecoration(
+            style: TextStyle(
+              color: isLight ? const Color(0xFF1A1A1A) : Colors.white,
+              fontFamily: _activeFont,
+            ),
+            decoration: InputDecoration(
               hintText: 'New playlist name',
-              hintStyle: TextStyle(color: Colors.white54),
+              hintStyle: TextStyle(
+                color: isLight ? Colors.black38 : Colors.white54,
+                fontFamily: _activeFont,
+              ),
               enabledBorder: UnderlineInputBorder(
-                borderSide: BorderSide(color: Colors.white24),
+                borderSide: BorderSide(
+                  color: isLight ? Colors.black12 : Colors.white24,
+                ),
               ),
               focusedBorder: UnderlineInputBorder(
-                borderSide: BorderSide(color: Color(0xFF1DB954)),
+                borderSide: BorderSide(color: _activeAccentColor),
               ),
             ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text(
+              child: Text(
                 'Cancel',
-                style: TextStyle(color: Colors.white54),
+                style: TextStyle(
+                  color: isLight ? Colors.black45 : Colors.white54,
+                  fontFamily: _activeFont,
+                ),
               ),
             ),
             TextButton(
@@ -849,14 +1339,18 @@ extension _ModalsUI on _MainScreenState {
                     _saveUserPlaylists();
                   });
                   Navigator.pop(context);
-                  Fluttertoast.showToast(msg: "Playlist renamed");
+                  showTunzaToast("Playlist renamed");
                 } else if (_userPlaylists.containsKey(newName)) {
-                  Fluttertoast.showToast(msg: "Playlist name already exists");
+                  showTunzaToast("Playlist name already exists");
                 }
               },
-              child: const Text(
+              child: Text(
                 'Save',
-                style: TextStyle(color: Color(0xFF1DB954)),
+                style: TextStyle(
+                  color: _activeAccentColor,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: _activeFont,
+                ),
               ),
             ),
           ],
@@ -866,9 +1360,12 @@ extension _ModalsUI on _MainScreenState {
   }
 
   void _showDetailOptions(String title, String type, List<Track> tracks) {
+    final isLight = themeModeNotifier.value == 'light';
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF161616),
+      backgroundColor: isLight
+          ? const Color(0xFFF0F0F3)
+          : const Color(0xFF161616),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -882,7 +1379,7 @@ extension _ModalsUI on _MainScreenState {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.white24,
+                  color: isLight ? Colors.black12 : Colors.white24,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -891,10 +1388,11 @@ extension _ModalsUI on _MainScreenState {
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Text(
                   title,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: isLight ? const Color(0xFF1A1A1A) : Colors.white,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
+                    fontFamily: _activeFont,
                   ),
                   textAlign: TextAlign.center,
                   maxLines: 1,
@@ -910,9 +1408,7 @@ extension _ModalsUI on _MainScreenState {
                     _moveTrackInQueue(track, insertPos);
                     insertPos++;
                   }
-                  Fluttertoast.showToast(
-                    msg: "Added ${tracks.length} tracks to play next",
-                  );
+                  showTunzaToast("Added ${tracks.length} tracks to play next");
                 }
               }),
               _buildOptionItem(Icons.queue_music, 'Add to Queue', () {
@@ -921,16 +1417,22 @@ extension _ModalsUI on _MainScreenState {
                   for (final track in tracks) {
                     _moveTrackInQueue(track, _playbackQueue.length);
                   }
-                  Fluttertoast.showToast(
-                    msg: "Added ${tracks.length} tracks to queue",
-                  );
+                  showTunzaToast("Added ${tracks.length} tracks to queue");
                 }
               }),
               _buildOptionItem(Icons.playlist_add, 'Add to Playlist', () {
                 Navigator.pop(context);
                 _showMultiSelectSongsModal(context, candidateTracks: tracks);
               }),
+              _buildOptionItem(Icons.sort_rounded, 'Sort Songs', () {
+                Navigator.pop(context);
+                _showDetailSortModal(context);
+              }),
               if (type == 'Playlist' && _userPlaylists.containsKey(title)) ...[
+                _buildOptionItem(Icons.edit_note_rounded, 'Edit Songs', () {
+                  Navigator.pop(context);
+                  _showEditPlaylistSongsModal(context, title);
+                }),
                 _buildOptionItem(Icons.add, 'Add Songs', () {
                   Navigator.pop(context);
                   _showMultiSelectSongsModal(
@@ -995,10 +1497,13 @@ extension _ModalsUI on _MainScreenState {
     List<Track> songs,
   ) {
     final isCustomPlaylist = _userPlaylists.containsKey(title);
+    final isLight = themeModeNotifier.value == 'light';
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF161616),
+      backgroundColor: isLight
+          ? const Color(0xFFF0F0F3)
+          : const Color(0xFF161616),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -1011,29 +1516,33 @@ extension _ModalsUI on _MainScreenState {
                 padding: const EdgeInsets.all(16.0),
                 child: Text(
                   title,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: isLight ? const Color(0xFF1A1A1A) : Colors.white,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
+                    fontFamily: _activeFont,
                   ),
                 ),
               ),
-              const Divider(color: Colors.white10, height: 1),
+              Divider(
+                color: isLight
+                    ? Colors.black.withOpacity(0.08)
+                    : Colors.white10,
+                height: 1,
+              ),
               _buildOptionItem(Icons.play_arrow, 'Play all', () {
                 Navigator.pop(context);
                 if (songs.isNotEmpty) {
                   _playTrack(0, sourceList: songs);
                 } else {
-                  Fluttertoast.showToast(msg: "Playlist is empty");
+                  showTunzaToast("Playlist is empty");
                 }
               }),
               _buildOptionItem(Icons.queue_music, 'Add to queue', () {
                 Navigator.pop(context);
                 if (songs.isNotEmpty) {
                   _playbackQueue.addAll(songs);
-                  Fluttertoast.showToast(
-                    msg: "Added ${songs.length} songs to queue",
-                  );
+                  showTunzaToast("Added ${songs.length} songs to queue");
                 }
               }),
               _buildOptionItem(Icons.playlist_add, 'Add to Playlist', () {
@@ -1041,7 +1550,12 @@ extension _ModalsUI on _MainScreenState {
                 _showMultiSelectSongsModal(context, candidateTracks: songs);
               }),
               if (isCustomPlaylist) ...[
-                const Divider(color: Colors.white10, height: 1),
+                Divider(
+                  color: isLight
+                      ? Colors.black.withOpacity(0.08)
+                      : Colors.white10,
+                  height: 1,
+                ),
                 _buildOptionItem(Icons.add, 'Add Songs', () {
                   Navigator.pop(context);
                   _showMultiSelectSongsModal(
@@ -1064,7 +1578,7 @@ extension _ModalsUI on _MainScreenState {
                       _playlistCovers[title] = image.path;
                     });
                     _savePlaylistCovers();
-                    Fluttertoast.showToast(msg: "Playlist cover updated");
+                    showTunzaToast("Playlist cover updated");
                   }
                 }),
                 _buildOptionItem(
@@ -1081,7 +1595,7 @@ extension _ModalsUI on _MainScreenState {
                       }
                     });
                     _saveUserPlaylists();
-                    Fluttertoast.showToast(msg: "Playlist deleted");
+                    showTunzaToast("Playlist deleted");
                   },
                   iconColor: Colors.redAccent,
                 ),
@@ -1095,9 +1609,12 @@ extension _ModalsUI on _MainScreenState {
   }
 
   void _showFullSleepTimerDialog(BuildContext context) {
+    final isLight = themeModeNotifier.value == 'light';
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF161616),
+      backgroundColor: isLight
+          ? const Color(0xFFF0F0F3)
+          : const Color(0xFF161616),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -1114,24 +1631,30 @@ extension _ModalsUI on _MainScreenState {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.white24,
+                    color: isLight ? Colors.black12 : Colors.white24,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
               ),
               const SizedBox(height: 16),
-              const Center(
+              Center(
                 child: Text(
                   'Sleep timer',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: isLight ? const Color(0xFF1A1A1A) : Colors.white,
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
+                    fontFamily: _activeFont,
                   ),
                 ),
               ),
               const SizedBox(height: 16),
-              const Divider(color: Colors.white10, height: 1),
+              Divider(
+                color: isLight
+                    ? Colors.black.withOpacity(0.08)
+                    : Colors.white10,
+                height: 1,
+              ),
               _buildTimerSheetOpt(context, '5 minutes', 5),
               _buildTimerSheetOpt(context, '10 minutes', 10),
               _buildTimerSheetOpt(context, '15 minutes', 15),
@@ -1149,14 +1672,16 @@ extension _ModalsUI on _MainScreenState {
   }
 
   Widget _buildTimerSheetOpt(BuildContext context, String label, int minutes) {
+    final isLight = themeModeNotifier.value == 'light';
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
       title: Text(
         label,
-        style: const TextStyle(
-          color: Colors.white,
+        style: TextStyle(
+          color: isLight ? const Color(0xFF1A1A1A) : Colors.white,
           fontSize: 16,
           fontWeight: FontWeight.w400,
+          fontFamily: _activeFont,
         ),
       ),
       onTap: () {
@@ -1174,10 +1699,14 @@ extension _ModalsUI on _MainScreenState {
       ignoreCase: true,
     );
 
+    final isLight = themeModeNotifier.value == 'light';
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF0A0A0A),
+      backgroundColor: isLight
+          ? const Color(0xFFF0F0F3)
+          : const Color(0xFF161616),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -1188,12 +1717,12 @@ extension _ModalsUI on _MainScreenState {
               future: queryFuture,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const SizedBox(
+                  return SizedBox(
                     height: 400,
                     child: Center(
                       child: CircularProgressIndicator(
                         valueColor: AlwaysStoppedAnimation<Color>(
-                          Color(0xFF1DB954),
+                          _activeAccentColor,
                         ),
                       ),
                     ),
@@ -1207,8 +1736,9 @@ extension _ModalsUI on _MainScreenState {
                       child: Text(
                         'No music folders found',
                         style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.4),
+                          color: isLight ? Colors.black45 : Colors.white30,
                           fontSize: 14,
+                          fontFamily: _activeFont,
                         ),
                       ),
                     ),
@@ -1256,7 +1786,7 @@ extension _ModalsUI on _MainScreenState {
                           width: 40,
                           height: 4,
                           decoration: BoxDecoration(
-                            color: Colors.white24,
+                            color: isLight ? Colors.black12 : Colors.white24,
                             borderRadius: BorderRadius.circular(2),
                           ),
                         ),
@@ -1265,12 +1795,15 @@ extension _ModalsUI on _MainScreenState {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
+                          Text(
                             'Specific Folder Scan',
                             style: TextStyle(
-                              color: Colors.white,
+                              color: isLight
+                                  ? const Color(0xFF1A1A1A)
+                                  : Colors.white,
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
+                              fontFamily: _activeFont,
                             ),
                           ),
                           if (isFilteringActive)
@@ -1290,12 +1823,13 @@ extension _ModalsUI on _MainScreenState {
                                 minimumSize: Size.zero,
                                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               ),
-                              child: const Text(
+                              child: Text(
                                 'Reset Filter',
                                 style: TextStyle(
-                                  color: Color(0xFF1DB954),
+                                  color: _activeAccentColor,
                                   fontWeight: FontWeight.w600,
                                   fontSize: 13,
+                                  fontFamily: _activeFont,
                                 ),
                               ),
                             ),
@@ -1305,8 +1839,9 @@ extension _ModalsUI on _MainScreenState {
                       Text(
                         'Select which folders to display in your library. Unselected folders will be hidden.',
                         style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.5),
+                          color: isLight ? Colors.black54 : Colors.white54,
                           fontSize: 12,
+                          fontFamily: _activeFont,
                         ),
                       ),
                       const SizedBox(height: 20),
@@ -1326,25 +1861,30 @@ extension _ModalsUI on _MainScreenState {
                             return Container(
                               margin: const EdgeInsets.only(bottom: 8),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF161616),
+                                color: isLight
+                                    ? Colors.black.withOpacity(0.04)
+                                    : const Color(0xFF22222B),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: SwitchListTile(
-                                activeThumbColor: const Color(0xFF1DB954),
-                                activeTrackColor: const Color(
-                                  0xFF1DB954,
-                                ).withValues(alpha: 0.2),
-                                inactiveThumbColor: Colors.white24,
-                                inactiveTrackColor: Colors.white12,
+                                activeThumbColor: _activeAccentColor,
+                                activeTrackColor: _activeAccentColor
+                                    .withOpacity(0.2),
+                                inactiveThumbColor: isLight
+                                    ? Colors.black26
+                                    : Colors.white24,
+                                inactiveTrackColor: isLight
+                                    ? Colors.black12
+                                    : Colors.white12,
                                 contentPadding: const EdgeInsets.symmetric(
                                   horizontal: 16,
                                   vertical: 4,
                                 ),
                                 title: Row(
                                   children: [
-                                    const Icon(
+                                    Icon(
                                       Icons.folder,
-                                      color: Color(0xFF1DB954),
+                                      color: _activeAccentColor,
                                       size: 20,
                                     ),
                                     const SizedBox(width: 10),
@@ -1355,10 +1895,13 @@ extension _ModalsUI on _MainScreenState {
                                             : folderName,
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                          color: Colors.white,
+                                        style: TextStyle(
+                                          color: isLight
+                                              ? const Color(0xFF1A1A1A)
+                                              : Colors.white,
                                           fontWeight: FontWeight.w600,
                                           fontSize: 14,
+                                          fontFamily: _activeFont,
                                         ),
                                       ),
                                     ),
@@ -1368,17 +1911,20 @@ extension _ModalsUI on _MainScreenState {
                                         vertical: 3,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: Colors.white.withValues(
-                                          alpha: 0.05,
-                                        ),
+                                        color: isLight
+                                            ? Colors.black.withOpacity(0.05)
+                                            : Colors.white.withOpacity(0.05),
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: Text(
                                         '${songsInFolder.length}',
-                                        style: const TextStyle(
-                                          color: Colors.white70,
+                                        style: TextStyle(
+                                          color: isLight
+                                              ? Colors.black54
+                                              : Colors.white70,
                                           fontSize: 11,
                                           fontWeight: FontWeight.bold,
+                                          fontFamily: _activeFont,
                                         ),
                                       ),
                                     ),
@@ -1393,9 +1939,12 @@ extension _ModalsUI on _MainScreenState {
                                     folderPath,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      color: Colors.white30,
+                                    style: TextStyle(
+                                      color: isLight
+                                          ? Colors.black38
+                                          : Colors.white30,
                                       fontSize: 11,
+                                      fontFamily: _activeFont,
                                     ),
                                   ),
                                 ),
@@ -1449,6 +1998,666 @@ extension _ModalsUI on _MainScreenState {
           },
         );
       },
+    );
+  }
+
+  void _showEqualizerSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF121212),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (context) {
+        return _EqualizerSheetContent(
+          player: _audioPlayer,
+          activeFont: _activeFont,
+          accentColor: _activeAccentColor,
+        );
+      },
+    );
+  }
+
+  void _showSortModal(BuildContext context) {
+    final isLight = themeModeNotifier.value == 'light';
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: isLight
+          ? const Color(0xFFF0F0F3)
+          : const Color(0xFF161616),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            Widget buildSortItem(String value, String label, IconData icon) {
+              final isSelected = _sortBy == value;
+              return ListTile(
+                onTap: () async {
+                  final nav = Navigator.of(context);
+                  setState(() {
+                    _sortBy = value;
+                  });
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.setString('sortBy', value);
+                  nav.pop();
+                },
+                leading: Icon(
+                  icon,
+                  color: isSelected
+                      ? _activeAccentColor
+                      : (isLight ? Colors.black54 : Colors.white60),
+                ),
+                title: Text(
+                  label,
+                  style: TextStyle(
+                    color: isSelected
+                        ? _activeAccentColor
+                        : (isLight ? const Color(0xFF1A1A1A) : Colors.white),
+                    fontWeight: isSelected
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                    fontFamily: _activeFont,
+                  ),
+                ),
+                trailing: isSelected
+                    ? Icon(Icons.check, color: _activeAccentColor)
+                    : null,
+              );
+            }
+
+            return SafeArea(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SizedBox(height: 8),
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: isLight ? Colors.black12 : Colors.white24,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Text(
+                      'Sort by',
+                      style: TextStyle(
+                        color: isLight ? const Color(0xFF1A1A1A) : Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: _activeFont,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Divider(
+                    color: isLight
+                        ? Colors.black.withOpacity(0.08)
+                        : Colors.white10,
+                    height: 1,
+                  ),
+                  buildSortItem(
+                    'date',
+                    'Recently Added (Default)',
+                    Icons.calendar_today_rounded,
+                  ),
+                  buildSortItem(
+                    'date_oldest',
+                    'Oldest Added first',
+                    Icons.history_toggle_off_rounded,
+                  ),
+                  buildSortItem(
+                    'title',
+                    'Title (A to Z)',
+                    Icons.sort_by_alpha_rounded,
+                  ),
+                  buildSortItem(
+                    'artist',
+                    'Artist (A to Z)',
+                    Icons.person_search_rounded,
+                  ),
+                  buildSortItem('album', 'Album (A to Z)', Icons.album_rounded),
+                  buildSortItem(
+                    'duration_longest',
+                    'Duration (Longest first)',
+                    Icons.hourglass_top_rounded,
+                  ),
+                  buildSortItem(
+                    'duration_shortest',
+                    'Duration (Shortest first)',
+                    Icons.hourglass_bottom_rounded,
+                  ),
+                  const SizedBox(height: 16),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showDetailSortModal(BuildContext context) {
+    final isLight = themeModeNotifier.value == 'light';
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: isLight
+          ? const Color(0xFFF0F0F3)
+          : const Color(0xFF161616),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            Widget buildSortItem(String value, String label, IconData icon) {
+              final isSelected = _detailSortBy == value;
+              return ListTile(
+                onTap: () async {
+                  final nav = Navigator.of(context);
+                  setState(() {
+                    _detailSortBy = value;
+                    _cachedDetailKey =
+                        null; // Invalidate cache to force instant resort
+                  });
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.setString('detailSortBy', value);
+                  nav.pop();
+                },
+                leading: Icon(
+                  icon,
+                  color: isSelected
+                      ? _activeAccentColor
+                      : (isLight ? Colors.black54 : Colors.white60),
+                ),
+                title: Text(
+                  label,
+                  style: TextStyle(
+                    color: isSelected
+                        ? _activeAccentColor
+                        : (isLight ? const Color(0xFF1A1A1A) : Colors.white),
+                    fontWeight: isSelected
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                    fontFamily: _activeFont,
+                  ),
+                ),
+                trailing: isSelected
+                    ? Icon(Icons.check, color: _activeAccentColor)
+                    : null,
+              );
+            }
+
+            return SafeArea(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SizedBox(height: 8),
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: isLight ? Colors.black12 : Colors.white24,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Text(
+                      'Sort songs in view',
+                      style: TextStyle(
+                        color: isLight ? const Color(0xFF1A1A1A) : Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: _activeFont,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Divider(
+                    color: isLight
+                        ? Colors.black.withOpacity(0.08)
+                        : Colors.white10,
+                    height: 1,
+                  ),
+                  buildSortItem(
+                    'default',
+                    'Default Track Order',
+                    Icons.playlist_play,
+                  ),
+                  buildSortItem(
+                    'title',
+                    'Title (A to Z)',
+                    Icons.sort_by_alpha_rounded,
+                  ),
+                  buildSortItem(
+                    'artist',
+                    'Artist (A to Z)',
+                    Icons.person_search_rounded,
+                  ),
+                  buildSortItem(
+                    'duration_longest',
+                    'Duration (Longest first)',
+                    Icons.hourglass_top_rounded,
+                  ),
+                  buildSortItem(
+                    'duration_shortest',
+                    'Duration (Shortest first)',
+                    Icons.hourglass_bottom_rounded,
+                  ),
+                  const SizedBox(height: 16),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _EqualizerSheetContent extends StatefulWidget {
+  final AudioPlayer player;
+  final String activeFont;
+  final Color accentColor;
+
+  const _EqualizerSheetContent({
+    required this.player,
+    required this.activeFont,
+    required this.accentColor,
+  });
+
+  @override
+  State<_EqualizerSheetContent> createState() => _EqualizerSheetContentState();
+}
+
+class _EqualizerSheetContentState extends State<_EqualizerSheetContent> {
+  static const _channel = MethodChannel('com.tunza.audio/equalizer');
+  bool _initialized = false;
+  bool _enabled = false;
+  int _bands = 0;
+  int _minLevel = -1500;
+  int _maxLevel = 1500;
+  List<int> _frequencies = [];
+  List<int> _levels = [];
+  String? _error;
+  String _activePreset = 'Custom';
+
+  final Map<String, List<int>> _presets = {
+    'Flat': [0, 0, 0, 0, 0],
+    'Classical': [500, 300, -200, 400, 400],
+    'Dance': [600, 0, 200, 400, 100],
+    'Folk': [300, 0, 0, 200, -100],
+    'Heavy Metal': [400, 100, 900, 300, 0],
+    'Hip Hop': [500, 300, 0, 100, 500],
+    'Jazz': [400, 200, -200, 200, 500],
+    'Pop': [-200, -100, 500, 100, -200],
+    'Rock': [500, 300, -100, 300, 500],
+    'Bass Booster': [900, 600, 0, 0, 0],
+    'Vocal Booster': [-200, 0, 600, 400, 0],
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _initEQ();
+  }
+
+  Future<void> _initEQ() async {
+    final sessionId = widget.player.androidAudioSessionId ?? 0;
+    if (sessionId == 0) {
+      setState(() {
+        _error = "Play a song first to initialize the Equalizer!";
+        _initialized = true;
+      });
+      return;
+    }
+
+    try {
+      final res = await _channel.invokeMapMethod<String, dynamic>(
+        'initEqualizer',
+        {'audioSessionId': sessionId},
+      );
+      if (res != null) {
+        final prefs = await SharedPreferences.getInstance();
+        setState(() {
+          _bands = res['bands'] as int;
+          _minLevel = res['minLevel'] as int;
+          _maxLevel = res['maxLevel'] as int;
+          _frequencies = List<int>.from(res['frequencies']);
+
+          final savedLevelsStr = prefs.getString('saved_eq_levels');
+          if (savedLevelsStr != null) {
+            _levels = List<int>.from(jsonDecode(savedLevelsStr));
+            for (int i = 0; i < _levels.length; i++) {
+              if (i < _bands) {
+                _channel.invokeMethod('setBandLevel', {
+                  'band': i,
+                  'level': _levels[i],
+                });
+              }
+            }
+          } else {
+            _levels = List<int>.from(res['levels']);
+          }
+
+          _enabled =
+              prefs.getBool('saved_eq_enabled') ?? res['enabled'] as bool;
+          _channel.invokeMethod('setEqualizerEnabled', {'enable': _enabled});
+          _activePreset = prefs.getString('saved_eq_preset') ?? 'Custom';
+          _initialized = true;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _error = "Equalizer is not supported on this device";
+        _initialized = true;
+      });
+    }
+  }
+
+  Future<void> _updateBandLevel(int band, int value) async {
+    if (!_enabled) return;
+    setState(() {
+      _levels[band] = value;
+      _activePreset = 'Custom';
+    });
+    try {
+      await _channel.invokeMethod('setBandLevel', {
+        'band': band,
+        'level': value,
+      });
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('saved_eq_levels', jsonEncode(_levels));
+      await prefs.setString('saved_eq_preset', 'Custom');
+    } catch (_) {}
+  }
+
+  Future<void> _toggleEnabled(bool val) async {
+    setState(() {
+      _enabled = val;
+    });
+    try {
+      await _channel.invokeMethod('setEqualizerEnabled', {'enable': val});
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('saved_eq_enabled', val);
+    } catch (_) {}
+  }
+
+  Future<void> _selectPreset(String name) async {
+    if (!_enabled) return;
+    final presetVals = _presets[name];
+    if (presetVals != null) {
+      setState(() {
+        _activePreset = name;
+        for (int i = 0; i < _levels.length; i++) {
+          if (i < presetVals.length) {
+            _levels[i] = presetVals[i];
+          }
+        }
+      });
+
+      try {
+        for (int i = 0; i < _levels.length; i++) {
+          await _channel.invokeMethod('setBandLevel', {
+            'band': i,
+            'level': _levels[i],
+          });
+        }
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('saved_eq_levels', jsonEncode(_levels));
+        await prefs.setString('saved_eq_preset', name);
+      } catch (_) {}
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textStyle = GoogleFonts.getFont(
+      widget.activeFont,
+      color: Colors.white,
+    );
+
+    if (!_initialized) {
+      return Container(
+        height: 400,
+        alignment: Alignment.center,
+        color: const Color(0xFF121212),
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(widget.accentColor),
+        ),
+      );
+    }
+
+    if (_error != null) {
+      return Container(
+        padding: const EdgeInsets.all(24),
+        color: const Color(0xFF121212),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 48,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Icon(
+                Icons.equalizer_rounded,
+                size: 64,
+                color: widget.accentColor,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'System Equalizer',
+                style: textStyle.copyWith(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                _error!,
+                style: textStyle.copyWith(fontSize: 14, color: Colors.white54),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      color: const Color(0xFF121212),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 48,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'System Equalizer',
+                      style: textStyle.copyWith(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Sculpt your sound waves in real-time',
+                      style: textStyle.copyWith(
+                        fontSize: 12,
+                        color: Colors.white38,
+                      ),
+                    ),
+                  ],
+                ),
+                Switch.adaptive(
+                  value: _enabled,
+                  activeThumbColor: widget.accentColor,
+                  activeTrackColor: widget.accentColor.withValues(alpha: 0.3),
+                  onChanged: (val) => _toggleEnabled(val),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+
+            Opacity(
+              opacity: _enabled ? 1.0 : 0.4,
+              child: IgnorePointer(
+                ignoring: !_enabled,
+                child: SizedBox(
+                  height: 38,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: _presets.keys.map((presetName) {
+                      final isActive = _activePreset == presetName;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8.0),
+                        child: ChoiceChip(
+                          label: Text(presetName),
+                          selected: isActive,
+                          selectedColor: widget.accentColor,
+                          backgroundColor: const Color(0xFF1E1E1E),
+                          labelStyle: textStyle.copyWith(
+                            fontSize: 13,
+                            fontWeight: isActive
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                            color: isActive ? Colors.white : Colors.white70,
+                          ),
+                          onSelected: (selected) {
+                            if (selected) {
+                              _selectPreset(presetName);
+                            }
+                          },
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            Opacity(
+              opacity: _enabled ? 1.0 : 0.3,
+              child: IgnorePointer(
+                ignoring: !_enabled,
+                child: Container(
+                  height: 220,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1A1A1A),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: List.generate(_bands, (index) {
+                      final freq = _frequencies[index];
+                      final freqLabel = freq >= 1000
+                          ? '${(freq / 1000).toStringAsFixed(0)}k'
+                          : '$freq';
+                      final level = _levels[index];
+                      final dbVal = (level / 100).toStringAsFixed(0);
+
+                      return Column(
+                        children: [
+                          Text(
+                            '${dbVal}dB',
+                            style: textStyle.copyWith(
+                              fontSize: 10,
+                              color: Colors.white54,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+
+                          Expanded(
+                            child: RotatedBox(
+                              quarterTurns: 3,
+                              child: SliderTheme(
+                                data: SliderThemeData(
+                                  trackHeight: 3.5,
+                                  activeTrackColor: widget.accentColor,
+                                  inactiveTrackColor: Colors.white12,
+                                  thumbColor: Colors.white,
+                                  overlayColor: widget.accentColor.withValues(
+                                    alpha: 0.2,
+                                  ),
+                                  thumbShape: const RoundSliderThumbShape(
+                                    enabledThumbRadius: 6.5,
+                                    elevation: 2,
+                                  ),
+                                ),
+                                child: Slider(
+                                  value: level.toDouble(),
+                                  min: _minLevel.toDouble(),
+                                  max: _maxLevel.toDouble(),
+                                  onChanged: (val) {
+                                    _updateBandLevel(index, val.toInt());
+                                  },
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+
+                          Text(
+                            '${freqLabel}Hz',
+                            style: textStyle.copyWith(
+                              fontSize: 11,
+                              color: Colors.white38,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      );
+                    }),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
     );
   }
 }

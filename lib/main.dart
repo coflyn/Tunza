@@ -17,6 +17,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:palette_generator/palette_generator.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'models/track.dart';
 
@@ -29,6 +30,77 @@ part 'ui/modals_ui.dart';
 bool isBackgroundInitialized = false;
 String? backgroundInitError;
 late AudioHandler audioHandler;
+final ValueNotifier<String> activeFontNotifier = ValueNotifier<String>(
+  'Plus Jakarta Sans',
+);
+final ValueNotifier<double> fontScaleNotifier = ValueNotifier<double>(1.0);
+final ValueNotifier<String> themeModeNotifier = ValueNotifier<String>('dark');
+final ValueNotifier<String> customThemeBgNotifier = ValueNotifier<String>(
+  'dynamic',
+);
+final ValueNotifier<Color?> dominantColorNotifier = ValueNotifier<Color?>(null);
+final ValueNotifier<String?> customThemeBgPathNotifier = ValueNotifier<String?>(
+  null,
+);
+final ValueNotifier<double> customThemeBgBlurNotifier = ValueNotifier<double>(
+  25.0,
+);
+final ValueNotifier<double> customThemeBgDimNotifier = ValueNotifier<double>(
+  0.65,
+);
+final ValueNotifier<double> customThemeBgScaleNotifier = ValueNotifier<double>(
+  1.0,
+);
+void showTunzaToast(String msg, {bool isLong = false}) {
+  Fluttertoast.showToast(
+    msg: msg,
+    toastLength: isLong ? Toast.LENGTH_LONG : Toast.LENGTH_SHORT,
+    gravity: ToastGravity.BOTTOM,
+    backgroundColor: const Color(0xFF1E1E1E),
+    textColor: Colors.white,
+    fontSize: 14.0,
+  );
+}
+
+Color getAppBackgroundColor({
+  required String themeMode,
+  required String customBg,
+  required Color? artworkColor,
+}) {
+  if (themeMode == 'light') return const Color(0xFFF6F8FA);
+  if (themeMode == 'dark') return const Color(0xFF0A0A0A);
+  switch (customBg) {
+    case 'custom_image':
+      return Colors.transparent;
+    case 'navy':
+      return const Color(0xFF0B132B);
+    case 'forest':
+      return const Color(0xFF0D1F1D);
+    case 'wine':
+      return const Color(0xFF1A0F1A);
+    case 'terracotta':
+      return const Color(0xFF211510);
+    case 'slate':
+      return const Color(0xFF1C2541);
+    case 'dynamic':
+    default:
+      if (artworkColor == null) return const Color(0xFF0F0F15);
+      final hsl = HSLColor.fromColor(artworkColor);
+      return hsl
+          .withSaturation(clampDouble(hsl.saturation * 0.35, 0.1, 0.25))
+          .withLightness(clampDouble(hsl.lightness * 0.12, 0.04, 0.08))
+          .toColor();
+  }
+}
+
+Color getAppCardColor({required String themeMode, required Color appBgColor}) {
+  if (themeMode == 'light') return Colors.white;
+  if (themeMode == 'dark') return const Color(0xFF161616);
+  final hsl = HSLColor.fromColor(appBgColor);
+  return hsl
+      .withLightness(clampDouble(hsl.lightness + 0.04, 0.06, 0.16))
+      .toColor();
+}
 
 class MyAudioHandler extends BaseAudioHandler {
   final player = AudioPlayer();
@@ -208,26 +280,110 @@ class TunzaApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Tunza',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: const Color(0xFF0A0A0A),
-        textTheme: GoogleFonts.plusJakartaSansTextTheme(
-          ThemeData.dark().textTheme,
-        ).apply(bodyColor: Colors.white, displayColor: Colors.white),
-        colorScheme: const ColorScheme.dark(
-          primary: Color(0xFF1DB954),
-          secondary: Color(0xFF1DB954),
-          surface: Color(0xFF121212),
-        ),
-        listTileTheme: ListTileThemeData(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      ),
-      home: const MainScreen(),
+    return ValueListenableBuilder<String>(
+      valueListenable: themeModeNotifier,
+      builder: (context, themeMode, child) {
+        return ValueListenableBuilder<String>(
+          valueListenable: customThemeBgNotifier,
+          builder: (context, customThemeBg, child) {
+            return ValueListenableBuilder<Color?>(
+              valueListenable: dominantColorNotifier,
+              builder: (context, dominantColor, child) {
+                final appBgColor = getAppBackgroundColor(
+                  themeMode: themeMode,
+                  customBg: customThemeBg,
+                  artworkColor: dominantColor,
+                );
+                final appCardColor = getAppCardColor(
+                  themeMode: themeMode,
+                  appBgColor: appBgColor,
+                );
+                final isLight = themeMode == 'light';
+
+                return ValueListenableBuilder<String>(
+                  valueListenable: activeFontNotifier,
+                  builder: (context, fontName, child) {
+                    final baseTheme = isLight
+                        ? ThemeData.light()
+                        : ThemeData.dark();
+                    TextTheme textTheme;
+                    if (fontName == 'Spotify Style') {
+                      textTheme = GoogleFonts.figtreeTextTheme(
+                        baseTheme.textTheme,
+                      );
+                    } else if (fontName == 'Apple Music Style') {
+                      textTheme = GoogleFonts.interTextTheme(
+                        baseTheme.textTheme,
+                      );
+                    } else {
+                      textTheme = GoogleFonts.plusJakartaSansTextTheme(
+                        baseTheme.textTheme,
+                      );
+                    }
+
+                    return ValueListenableBuilder<double>(
+                      valueListenable: fontScaleNotifier,
+                      builder: (context, scale, child) {
+                        return MaterialApp(
+                          title: 'Tunza',
+                          debugShowCheckedModeBanner: false,
+                          builder: (context, child) {
+                            return MediaQuery(
+                              data: MediaQuery.of(
+                                context,
+                              ).copyWith(textScaleFactor: scale),
+                              child: child!,
+                            );
+                          },
+                          theme: ThemeData(
+                            useMaterial3: true,
+                            brightness: isLight
+                                ? Brightness.light
+                                : Brightness.dark,
+                            scaffoldBackgroundColor: appBgColor,
+                            textTheme: textTheme.apply(
+                              bodyColor: isLight
+                                  ? const Color(0xFF1A1A1A)
+                                  : Colors.white,
+                              displayColor: isLight
+                                  ? const Color(0xFF1A1A1A)
+                                  : Colors.white,
+                            ),
+                            colorScheme: ColorScheme(
+                              brightness: isLight
+                                  ? Brightness.light
+                                  : Brightness.dark,
+                              primary: const Color(0xFF1DB954),
+                              onPrimary: Colors.black,
+                              secondary: const Color(0xFF1DB954),
+                              onSecondary: Colors.black,
+                              error: Colors.red,
+                              onError: Colors.white,
+                              surface: appCardColor,
+                              onSurface: isLight
+                                  ? const Color(0xFF1A1A1A)
+                                  : Colors.white,
+                              outline: isLight
+                                  ? Colors.black12
+                                  : Colors.white10,
+                            ),
+                            listTileTheme: ListTileThemeData(
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                          home: const MainScreen(),
+                        );
+                      },
+                    );
+                  },
+                );
+              },
+            );
+          },
+        );
+      },
     );
   }
 }
@@ -235,12 +391,28 @@ class TunzaApp extends StatelessWidget {
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
 
+  // ignore: library_private_types_in_public_api
+  static _MainScreenState? get mainScreenState =>
+      _MainScreenState.mainScreenState;
+
+  static void showEqualizer(BuildContext context) {
+    if (mainScreenState != null) {
+      final sessionId = mainScreenState!.player.androidAudioSessionId ?? 0;
+      if (sessionId == 0) {
+        showTunzaToast("Please play a song first to use the Equalizer!");
+      } else {
+        mainScreenState!._showEqualizerSheet(context);
+      }
+    }
+  }
+
   @override
   State<MainScreen> createState() => _MainScreenState();
 }
 
 class _MainScreenState extends State<MainScreen> {
   static _MainScreenState? mainScreenState;
+  AudioPlayer get player => _audioPlayer;
   final AudioPlayer _audioPlayer = (audioHandler as MyAudioHandler).player;
   final OnAudioQuery _audioQuery = OnAudioQuery();
   final ScrollController _lyricsScrollController = ScrollController();
@@ -248,16 +420,33 @@ class _MainScreenState extends State<MainScreen> {
   final ValueNotifier<int> _sleepTimerNotifier = ValueNotifier<int>(0);
   Timer? _sleepTimer;
   bool _sleepAtEndOfTrack = false;
+  bool _isNaturalFadingOut = false;
+  String? _lastCrossfadedTrackId;
   bool _filterShortAudio = false;
   bool _autoRegexClean = false;
-  int _crossfadeDuration = 150;
+  int _crossfadeDuration = 200;
   bool _pauseOnDisconnect = true;
+  bool _autoPlayAfterCall = true;
+  int _playCountThreshold = 10;
+  String _activeFont = 'Plus Jakarta Sans';
+  double _fontScale = 1.0;
   String _specificFolderScan = '';
+  bool _skipSilence = false;
+  bool _stopOnLowBattery = false;
+  bool _monoAudio = false;
+  Timer? _batteryCheckTimer;
+  String _sortBy = 'date';
+  String _detailSortBy = 'default';
 
   List<Track> _allTracks = [];
   bool _isLoading = true;
   bool _isPlayerOpen = false;
   bool _showLyrics = false;
+  String? _currentLyricsPlain;
+  List<LyricsLine> _currentLyricsSynced = [];
+  bool _isLyricsLoading = false;
+  bool _isLyricsSynced = false;
+  int _lastActiveLyricsIndex = -1;
   String _playingFromType = 'LIBRARY';
   String _playingFromName = 'All Songs';
   String? _lastIncrementedTrackId;
@@ -293,6 +482,80 @@ class _MainScreenState extends State<MainScreen> {
   ProcessingState _processingState = ProcessingState.idle;
   double? _dragValue;
   Color? _dominantColor;
+  ValueNotifier<Color?> get _dominantColorNotifier => dominantColorNotifier;
+  String _playerBackgroundStyle = 'gradient';
+  final ValueNotifier<String> _playerBackgroundStyleNotifier =
+      ValueNotifier<String>('gradient');
+  String? _playerCustomBgPath;
+  final ValueNotifier<String?> _playerCustomBgPathNotifier =
+      ValueNotifier<String?>(null);
+  double _playerCustomBgBlur = 0.0;
+  final ValueNotifier<double> _playerCustomBgBlurNotifier =
+      ValueNotifier<double>(0.0);
+  double _playerCustomBgDim = 0.4;
+  final ValueNotifier<double> _playerCustomBgDimNotifier =
+      ValueNotifier<double>(0.4);
+  double _playerCustomBgScale = 1.0;
+  final ValueNotifier<double> _playerCustomBgScaleNotifier =
+      ValueNotifier<double>(1.0);
+  String _themeAccentPreset = 'spotify';
+  String _themeMode = 'dark';
+  String _customThemeBg = 'dynamic';
+  String? _customThemeBgPath;
+  ValueNotifier<String?> get _customThemeBgPathNotifier =>
+      customThemeBgPathNotifier;
+  double _customThemeBgBlur = 25.0;
+  final ValueNotifier<double> _customThemeBgBlurNotifier =
+      customThemeBgBlurNotifier;
+  double _customThemeBgDim = 0.65;
+  final ValueNotifier<double> _customThemeBgDimNotifier =
+      customThemeBgDimNotifier;
+  double _customThemeBgScale = 1.0;
+  final ValueNotifier<double> _customThemeBgScaleNotifier =
+      customThemeBgScaleNotifier;
+
+  Color _ensureLuminance(Color color) {
+    final hsl = HSLColor.fromColor(color);
+    if (hsl.lightness < 0.55) {
+      if (hsl.saturation < 0.12) {
+        return const Color(0xFFB3B3B3);
+      }
+      return hsl
+          .withLightness(0.6)
+          .toColor(); // Boost brightness for readable pastel glow!
+    }
+    return color;
+  }
+
+  Color get _activeAccentColor {
+    if (_themeAccentPreset == 'dynamic') {
+      final baseColor = _dominantColor ?? const Color(0xFF8E8E93);
+      return _ensureLuminance(baseColor);
+    }
+    switch (_themeAccentPreset) {
+      case 'spotify':
+        return const Color(0xFF1DB954);
+      case 'apple':
+        return const Color(0xFFFC3C44);
+      case 'purple':
+        return const Color(0xFF8E2DE2);
+      case 'tidal':
+        return const Color(0xFF00F2FE);
+      case 'orange':
+        return const Color(0xFFFF9233);
+      case 'sakura':
+        return const Color(0xFFFF2A6D);
+      case 'gold':
+        return const Color(0xFFDFBA59);
+      case 'blue':
+        return const Color(0xFF007AFF);
+      case 'lime':
+        return const Color(0xFFCCFF00);
+      default:
+        return const Color(0xFF1DB954);
+    }
+  }
+
   Future<Color?>? _detailColorFuture;
   int _fadeSessionId = 0;
   double _playerDragOffset = 0.0;
@@ -310,9 +573,46 @@ class _MainScreenState extends State<MainScreen> {
     setState(() {
       _filterShortAudio = prefs.getBool('filterShortAudio') ?? false;
       _autoRegexClean = prefs.getBool('autoRegexClean') ?? false;
-      _crossfadeDuration = prefs.getInt('crossfadeDuration') ?? 150;
+      _crossfadeDuration = prefs.getInt('crossfadeDuration') ?? 200;
       _pauseOnDisconnect = prefs.getBool('pauseOnDisconnect') ?? true;
+      _autoPlayAfterCall = prefs.getBool('autoPlayAfterCall') ?? true;
+      _playCountThreshold = prefs.getInt('playCountThreshold') ?? 10;
+      _activeFont = prefs.getString('activeFont') ?? 'Plus Jakarta Sans';
+      _fontScale = prefs.getDouble('fontScale') ?? 1.0;
+      activeFontNotifier.value = _activeFont;
+      fontScaleNotifier.value = _fontScale;
       _specificFolderScan = prefs.getString('specificFolderScan') ?? '';
+      _skipSilence = prefs.getBool('skipSilence') ?? false;
+      _stopOnLowBattery = prefs.getBool('stopOnLowBattery') ?? false;
+      _monoAudio = prefs.getBool('monoAudio') ?? false;
+      _sortBy = prefs.getString('sortBy') ?? 'date';
+      _detailSortBy = prefs.getString('detailSortBy') ?? 'default';
+      _themeAccentPreset = prefs.getString('themeAccentPreset') ?? 'spotify';
+      _themeMode = prefs.getString('themeMode') ?? 'dark';
+      _customThemeBg = prefs.getString('customThemeBg') ?? 'dynamic';
+      _customThemeBgPath = prefs.getString('customThemeBgPath');
+      _customThemeBgBlur = prefs.getDouble('customThemeBgBlur') ?? 25.0;
+      _customThemeBgDim = prefs.getDouble('customThemeBgDim') ?? 0.65;
+      _customThemeBgScale = prefs.getDouble('customThemeBgScale') ?? 1.0;
+      themeModeNotifier.value = _themeMode;
+      customThemeBgNotifier.value = _customThemeBg;
+      customThemeBgPathNotifier.value = _customThemeBgPath;
+      customThemeBgBlurNotifier.value = _customThemeBgBlur;
+      customThemeBgDimNotifier.value = _customThemeBgDim;
+      customThemeBgScaleNotifier.value = _customThemeBgScale;
+      _playerBackgroundStyle =
+          prefs.getString('playerBackgroundStyle') ?? 'gradient';
+      _playerBackgroundStyleNotifier.value = _playerBackgroundStyle;
+      _playerCustomBgPath = prefs.getString('playerCustomBgPath');
+      _playerCustomBgPathNotifier.value = _playerCustomBgPath;
+      _playerCustomBgBlur = prefs.getDouble('playerCustomBgBlur') ?? 0.0;
+      _playerCustomBgBlurNotifier.value = _playerCustomBgBlur;
+      _playerCustomBgDim = prefs.getDouble('playerCustomBgDim') ?? 0.4;
+      _playerCustomBgDimNotifier.value = _playerCustomBgDim;
+      _playerCustomBgScale = prefs.getDouble('playerCustomBgScale') ?? 1.0;
+      _playerCustomBgScaleNotifier.value = _playerCustomBgScale;
+
+      _audioPlayer.setSkipSilenceEnabled(_skipSilence);
 
       final cachedSongsStr = prefs.getString('cached_tracks_list');
       if (cachedSongsStr != null) {
@@ -387,7 +687,7 @@ class _MainScreenState extends State<MainScreen> {
       _metadataOverrides.clear();
       _playlistCovers.clear();
     });
-    Fluttertoast.showToast(msg: "App data has been reset.");
+    showTunzaToast("App data has been reset.");
     _loadSettings();
   }
 
@@ -399,6 +699,49 @@ class _MainScreenState extends State<MainScreen> {
     _loadSettings();
     _requestPermissionAndScan();
     _setupAudioStreams();
+    _startBatteryMonitor();
+
+    AudioSession.instance.then((session) {
+      session.becomingNoisyEventStream.listen((_) {
+        if (_pauseOnDisconnect && _audioPlayer.playing) {
+          _pauseWithFade();
+          showTunzaToast("Headphones unplugged. Paused.");
+        }
+      });
+
+      bool playBeforeInterruption = false;
+      session.interruptionEventStream.listen((event) {
+        if (event.begin) {
+          switch (event.type) {
+            case AudioInterruptionType.duck:
+              if (_audioPlayer.playing) {
+                _audioPlayer.setVolume(_volume * 0.2);
+              }
+              break;
+            case AudioInterruptionType.pause:
+            case AudioInterruptionType.unknown:
+              if (_audioPlayer.playing) {
+                playBeforeInterruption = true;
+                _pauseWithFade();
+              }
+              break;
+          }
+        } else {
+          switch (event.type) {
+            case AudioInterruptionType.duck:
+              _audioPlayer.setVolume(_volume);
+              break;
+            case AudioInterruptionType.pause:
+            case AudioInterruptionType.unknown:
+              if (playBeforeInterruption && _autoPlayAfterCall) {
+                _playWithFade();
+              }
+              playBeforeInterruption = false;
+              break;
+          }
+        }
+      });
+    });
 
     if (backgroundInitError != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -429,6 +772,33 @@ class _MainScreenState extends State<MainScreen> {
         );
       });
     }
+  }
+
+  void _startBatteryMonitor() {
+    _batteryCheckTimer?.cancel();
+    _batteryCheckTimer = Timer.periodic(const Duration(seconds: 30), (
+      timer,
+    ) async {
+      if (_stopOnLowBattery && _audioPlayer.playing) {
+        try {
+          const channel = MethodChannel('com.tunza.audio/equalizer');
+          final result = await channel.invokeMapMethod<String, dynamic>(
+            'getBatteryStatus',
+          );
+          if (result != null) {
+            final int level = result['level'] ?? -1;
+            final bool isCharging = result['isCharging'] ?? false;
+            if (level != -1 && level <= 15 && !isCharging) {
+              _pauseWithFade();
+              showTunzaToast(
+                "Battery low ($level%). Playback paused.",
+                isLong: true,
+              );
+            }
+          }
+        } catch (_) {}
+      }
+    });
   }
 
   Future<Color?> _getDetailColor(Track? track, {String? playlistName}) async {
@@ -489,7 +859,13 @@ class _MainScreenState extends State<MainScreen> {
               (t) => t.id == trackId,
             );
             if (newQueueIndex != -1) {
-              _playTrack(newQueueIndex, playImmediately: true);
+              if (nativeIndex == 2) {
+                _slideWindowInPlace(newQueueIndex, 1);
+              } else if (nativeIndex == 0) {
+                _slideWindowInPlace(newQueueIndex, -1);
+              } else {
+                _playTrack(newQueueIndex, playImmediately: true);
+              }
             }
           }
         }
@@ -519,11 +895,19 @@ class _MainScreenState extends State<MainScreen> {
             ? duration
             : trackDuration;
 
-        bool shouldIncrement = pos.inSeconds >= 10;
-        if (!shouldIncrement && effectiveDuration > Duration.zero) {
-          if (effectiveDuration.inSeconds < 10 &&
-              pos >= effectiveDuration - const Duration(milliseconds: 500)) {
-            shouldIncrement = true;
+        bool shouldIncrement = false;
+        if (_playCountThreshold == -1) {
+          if (effectiveDuration > Duration.zero) {
+            shouldIncrement =
+                pos >= effectiveDuration - const Duration(milliseconds: 500);
+          }
+        } else {
+          shouldIncrement = pos.inSeconds >= _playCountThreshold;
+          if (!shouldIncrement && effectiveDuration > Duration.zero) {
+            if (effectiveDuration.inSeconds < _playCountThreshold &&
+                pos >= effectiveDuration - const Duration(milliseconds: 500)) {
+              shouldIncrement = true;
+            }
           }
         }
 
@@ -550,7 +934,92 @@ class _MainScreenState extends State<MainScreen> {
           _pauseWithFade();
         }
       }
+
+      final currentSource = _audioPlayer.sequenceState.currentSource;
+      final mediaItem = currentSource?.tag as MediaItem?;
+      final activeTrackId = mediaItem?.id;
+
+      if (activeTrackId != null && pos.inMilliseconds < 1000) {
+        _lastCrossfadedTrackId = null;
+      }
+
+      bool hasNextTrack = false;
+      if (_isShuffle && _shuffledIndices.isNotEmpty) {
+        int currentShuffledPos = _shuffledIndices.indexOf(_currentIndex);
+        hasNextTrack =
+            currentShuffledPos + 1 < _shuffledIndices.length ||
+            _repeatMode == 1;
+      } else {
+        hasNextTrack =
+            _currentIndex + 1 < _playbackQueue.length || _repeatMode == 1;
+      }
+
+      if (_crossfadeDuration > 0 &&
+          _audioPlayer.playing &&
+          !_isNaturalFadingOut &&
+          _repeatMode != 2 &&
+          activeTrackId != null &&
+          hasNextTrack &&
+          _lastCrossfadedTrackId != activeTrackId) {
+        final duration = _audioPlayer.duration ?? Duration.zero;
+        if (duration > Duration.zero) {
+          final remaining = duration - pos;
+          if (remaining.inMilliseconds <= _crossfadeDuration &&
+              remaining.inMilliseconds > 0) {
+            _isNaturalFadingOut = true;
+            _lastCrossfadedTrackId = activeTrackId;
+            Future.delayed(Duration.zero, () async {
+              final int sessionId = ++_fadeSessionId;
+              final int steps = 10;
+              final int stepDelay = (_crossfadeDuration / steps).round();
+              for (int i = steps; i >= 0; i--) {
+                if (_fadeSessionId != sessionId || !_audioPlayer.playing) break;
+                await _audioPlayer.setVolume(_volume * (i / steps.toDouble()));
+                if (stepDelay > 0) {
+                  await Future.delayed(Duration(milliseconds: stepDelay));
+                }
+              }
+            });
+          }
+        }
+      }
     });
+
+    _audioPlayer.androidAudioSessionIdStream.listen((sessionId) {
+      if (sessionId != null && sessionId != 0) {
+        _applySavedEqualizerSettings(sessionId);
+      }
+    });
+  }
+
+  Future<void> _applySavedEqualizerSettings(int sessionId) async {
+    if (sessionId == 0) return;
+    try {
+      const channel = MethodChannel('com.tunza.audio/equalizer');
+      final prefs = await SharedPreferences.getInstance();
+      final enabled = prefs.getBool('saved_eq_enabled') ?? false;
+      if (enabled) {
+        final res = await channel.invokeMapMethod<String, dynamic>(
+          'initEqualizer',
+          {'audioSessionId': sessionId},
+        );
+        if (res != null) {
+          final savedLevelsStr = prefs.getString('saved_eq_levels');
+          if (savedLevelsStr != null) {
+            final levels = List<int>.from(jsonDecode(savedLevelsStr));
+            for (int i = 0; i < levels.length; i++) {
+              if (i < (res['bands'] as int)) {
+                await channel.invokeMethod('setBandLevel', {
+                  'band': i,
+                  'level': levels[i],
+                });
+              }
+            }
+          }
+          await channel.invokeMethod('setEqualizerEnabled', {'enable': true});
+        }
+      }
+    } catch (_) {}
   }
 
   Future<void> _requestPermissionAndScan({bool showLoading = true}) async {
@@ -791,12 +1260,16 @@ class _MainScreenState extends State<MainScreen> {
                 palette.dominantColor?.color ??
                 palette.vibrantColor?.color ??
                 palette.mutedColor?.color;
+            _dominantColorNotifier.value = _dominantColor != null
+                ? _ensureLuminance(_dominantColor!)
+                : null;
           });
         }
       } else {
         if (mounted) {
           setState(() {
             _dominantColor = null;
+            _dominantColorNotifier.value = null;
           });
         }
       }
@@ -804,6 +1277,7 @@ class _MainScreenState extends State<MainScreen> {
       if (mounted) {
         setState(() {
           _dominantColor = null;
+          _dominantColorNotifier.value = null;
         });
       }
     }
@@ -981,6 +1455,8 @@ class _MainScreenState extends State<MainScreen> {
       _currentIndex = index;
       _playingTrack = track;
       _lastIncrementedTrackId = null;
+      _isNaturalFadingOut = false;
+      _lastActiveLyricsIndex = -1;
       if (_isShuffle && !queueMatches && sourceList != null) {
         _shuffledIndices.remove(_currentIndex);
         _shuffledIndices.insert(0, _currentIndex);
@@ -992,6 +1468,8 @@ class _MainScreenState extends State<MainScreen> {
         if (_lastPlayedTrackIds.length > 100) _lastPlayedTrackIds.removeLast();
       }
     });
+
+    _loadLyricsForTrack(track);
 
     _updateDominantColor(track);
 
@@ -1097,12 +1575,16 @@ class _MainScreenState extends State<MainScreen> {
 
       final int sessionId = ++_fadeSessionId;
 
-      if (_audioPlayer.playing) {
+      if (_audioPlayer.playing && _crossfadeDuration > 0) {
         // Smooth fade out
-        for (int i = 10; i >= 0; i--) {
+        final int steps = 10;
+        final int stepDelay = (_crossfadeDuration / steps).round();
+        for (int i = steps; i >= 0; i--) {
           if (_fadeSessionId != sessionId) return;
-          await _audioPlayer.setVolume(_volume * (i / 10));
-          await Future.delayed(const Duration(milliseconds: 15));
+          await _audioPlayer.setVolume(_volume * (i / steps.toDouble()));
+          if (stepDelay > 0) {
+            await Future.delayed(Duration(milliseconds: stepDelay));
+          }
         }
       }
 
@@ -1114,11 +1596,17 @@ class _MainScreenState extends State<MainScreen> {
       if (playImmediately) {
         await _audioPlayer.setVolume(0.0);
         _audioPlayer.play();
-        // Smooth fade in
-        for (int i = 1; i <= 10; i++) {
-          if (_fadeSessionId != sessionId) return;
-          await _audioPlayer.setVolume(_volume * (i / 10));
-          await Future.delayed(const Duration(milliseconds: 15));
+        if (_crossfadeDuration > 0) {
+          // Smooth fade in
+          final int steps = 10;
+          final int stepDelay = (_crossfadeDuration / steps).round();
+          for (int i = 1; i <= steps; i++) {
+            if (_fadeSessionId != sessionId) return;
+            await _audioPlayer.setVolume(_volume * (i / steps.toDouble()));
+            if (stepDelay > 0) {
+              await Future.delayed(Duration(milliseconds: stepDelay));
+            }
+          }
         }
         if (_fadeSessionId == sessionId) {
           await _audioPlayer.setVolume(_volume);
@@ -1153,6 +1641,125 @@ class _MainScreenState extends State<MainScreen> {
           }
         }
       });
+    } finally {
+      _isProgrammaticLoading = false;
+    }
+  }
+
+  Future<void> _slideWindowInPlace(int newQueueIndex, int direction) async {
+    _isProgrammaticLoading = true;
+    try {
+      final track = _playbackQueue[newQueueIndex];
+      setState(() {
+        _currentIndex = newQueueIndex;
+        _playingTrack = track;
+        _lastIncrementedTrackId = null;
+        _isNaturalFadingOut = false; // Reset the natural fade variable
+        _lastActiveLyricsIndex = -1;
+      });
+      _loadLyricsForTrack(track);
+      _updateDominantColor(track);
+
+      if (_crossfadeDuration > 0) {
+        final int sessionId = ++_fadeSessionId;
+        final int steps = 10;
+        final int stepDelay = (_crossfadeDuration / steps).round();
+        Future.delayed(Duration.zero, () async {
+          await _audioPlayer.setVolume(0.0);
+          for (int i = 1; i <= steps; i++) {
+            if (_fadeSessionId != sessionId) return;
+            await _audioPlayer.setVolume(_volume * (i / steps.toDouble()));
+            if (stepDelay > 0) {
+              await Future.delayed(Duration(milliseconds: stepDelay));
+            }
+          }
+          if (_fadeSessionId == sessionId) {
+            await _audioPlayer.setVolume(_volume);
+          }
+        });
+      } else {
+        await _audioPlayer.setVolume(_volume);
+      }
+
+      SharedPreferences.getInstance().then((prefs) {
+        prefs.setString('last_playing_track_id', track.id);
+        _lastPlayedTrackIds.remove(track.id);
+        _lastPlayedTrackIds.insert(0, track.id);
+        if (_lastPlayedTrackIds.length > 100) _lastPlayedTrackIds.removeLast();
+        prefs.setStringList('last_played_track_ids', _lastPlayedTrackIds);
+      });
+
+      if (_audioPlayer.audioSource is ConcatenatingAudioSource) {
+        final concatenating =
+            _audioPlayer.audioSource as ConcatenatingAudioSource;
+        if (direction > 0) {
+          // Slide forward: remove index 0, add new next at end
+          if (concatenating.sequence.isNotEmpty) {
+            await concatenating.removeAt(0);
+          }
+          if (newQueueIndex < _playbackQueue.length - 1) {
+            final nextTrack = _playbackQueue[newQueueIndex + 1];
+            final nextUri = nextTrack.url.startsWith('/')
+                ? Uri.file(nextTrack.url)
+                : (Uri.tryParse(nextTrack.url) ?? Uri.parse(''));
+            final nextCover = await _getCoverUriForTrack(nextTrack);
+            await concatenating.add(
+              AudioSource.uri(
+                nextUri,
+                tag: MediaItem(
+                  id: nextTrack.id,
+                  album: nextTrack.album.trim().isEmpty
+                      ? 'Unknown Album'
+                      : nextTrack.album,
+                  title: nextTrack.title.trim().isEmpty
+                      ? 'Unknown Title'
+                      : nextTrack.title,
+                  artist: nextTrack.artist.trim().isEmpty
+                      ? 'Unknown Artist'
+                      : nextTrack.artist,
+                  artUri: nextCover,
+                  duration: Duration(milliseconds: nextTrack.duration),
+                ),
+              ),
+            );
+          }
+        } else if (direction < 0) {
+          // Slide backward: remove last index, insert new prev at index 0
+          if (concatenating.sequence.length > 1) {
+            await concatenating.removeAt(concatenating.sequence.length - 1);
+          }
+          if (newQueueIndex > 0) {
+            final prevTrack = _playbackQueue[newQueueIndex - 1];
+            final prevUri = prevTrack.url.startsWith('/')
+                ? Uri.file(prevTrack.url)
+                : (Uri.tryParse(prevTrack.url) ?? Uri.parse(''));
+            final prevCover = await _getCoverUriForTrack(prevTrack);
+            await concatenating.insert(
+              0,
+              AudioSource.uri(
+                prevUri,
+                tag: MediaItem(
+                  id: prevTrack.id,
+                  album: prevTrack.album.trim().isEmpty
+                      ? 'Unknown Album'
+                      : prevTrack.album,
+                  title: prevTrack.title.trim().isEmpty
+                      ? 'Unknown Title'
+                      : prevTrack.title,
+                  artist: prevTrack.artist.trim().isEmpty
+                      ? 'Unknown Artist'
+                      : prevTrack.artist,
+                  artUri: prevCover,
+                  duration: Duration(milliseconds: prevTrack.duration),
+                ),
+              ),
+            );
+          }
+        }
+      }
+    } catch (_) {
+      // Fallback if mutation fails
+      _playTrack(newQueueIndex, playImmediately: true);
     } finally {
       _isProgrammaticLoading = false;
     }
@@ -1219,16 +1826,153 @@ class _MainScreenState extends State<MainScreen> {
     _playTrack(prevIndex);
   }
 
+  List<LyricsLine> _parseLrc(String lrcContent) {
+    final List<LyricsLine> lines = [];
+    final RegExp regExp = RegExp(r'\[(\d+):(\d+)(?:\.(\d+))?\](.*)');
+    for (final line in lrcContent.split('\n')) {
+      final match = regExp.firstMatch(line.trim());
+      if (match != null) {
+        final int minutes = int.parse(match.group(1)!);
+        final int seconds = int.parse(match.group(2)!);
+        final int milliseconds = match.group(3) != null
+            ? int.parse(match.group(3)!.padRight(3, '0').substring(0, 3))
+            : 0;
+        final String text = match.group(4)?.trim() ?? '';
+        final duration = Duration(
+          minutes: minutes,
+          seconds: seconds,
+          milliseconds: milliseconds,
+        );
+        lines.add(LyricsLine(time: duration, text: text));
+      }
+    }
+    lines.sort((a, b) => a.time.compareTo(b.time));
+    return lines;
+  }
+
+  Future<void> _loadLyricsForTrack(Track track) async {
+    setState(() {
+      _isLyricsLoading = true;
+      _currentLyricsPlain = null;
+      _currentLyricsSynced = [];
+      _isLyricsSynced = false;
+    });
+
+    final prefs = await SharedPreferences.getInstance();
+    final manualKey = 'lyrics_manual_${track.id}';
+
+    if (prefs.containsKey(manualKey)) {
+      final manualText = prefs.getString(manualKey) ?? '';
+      _parsePlainOrLrcLyrics(manualText);
+      setState(() {
+        _isLyricsLoading = false;
+      });
+      return;
+    }
+
+    final cacheKey = 'lyrics_cache_${track.id}';
+    if (prefs.containsKey(cacheKey)) {
+      final cachedJson = prefs.getString(cacheKey) ?? '';
+      try {
+        final data = jsonDecode(cachedJson);
+        _applyFetchedLyrics(data);
+        setState(() {
+          _isLyricsLoading = false;
+        });
+        return;
+      } catch (_) {}
+    }
+
+    try {
+      final cleanTitle = track.title;
+      final cleanArtist = track.artist.trim().isEmpty
+          ? 'Unknown Artist'
+          : track.artist;
+
+      final client = HttpClient();
+      client.connectionTimeout = const Duration(seconds: 5);
+      final uri = Uri.parse('https://lrclib.net/api/get').replace(
+        queryParameters: {'artist_name': cleanArtist, 'track_name': cleanTitle},
+      );
+
+      final request = await client.getUrl(uri);
+      final response = await request.close();
+
+      if (response.statusCode == 200) {
+        final body = await response.transform(utf8.decoder).join();
+        final data = jsonDecode(body);
+
+        await prefs.setString(cacheKey, body);
+        _applyFetchedLyrics(data);
+      } else {
+        _currentLyricsPlain = null;
+        _currentLyricsSynced = [];
+        _isLyricsSynced = false;
+      }
+    } catch (_) {
+      _currentLyricsPlain = null;
+      _currentLyricsSynced = [];
+      _isLyricsSynced = false;
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLyricsLoading = false;
+        });
+      }
+    }
+  }
+
+  void _applyFetchedLyrics(dynamic data) {
+    final synced = data['syncedLyrics'] as String?;
+    final plain = data['plainLyrics'] as String?;
+
+    if (synced != null && synced.trim().isNotEmpty) {
+      _currentLyricsSynced = _parseLrc(synced);
+      _currentLyricsPlain = plain ?? _stripLrcTimestamps(synced);
+      _isLyricsSynced = _currentLyricsSynced.isNotEmpty;
+    } else if (plain != null && plain.trim().isNotEmpty) {
+      _currentLyricsPlain = plain;
+      _currentLyricsSynced = [];
+      _isLyricsSynced = false;
+    } else {
+      _currentLyricsPlain = null;
+      _currentLyricsSynced = [];
+      _isLyricsSynced = false;
+    }
+  }
+
+  void _parsePlainOrLrcLyrics(String text) {
+    if (text.contains(RegExp(r'\[\d+:\d+'))) {
+      _currentLyricsSynced = _parseLrc(text);
+      _currentLyricsPlain = _stripLrcTimestamps(text);
+      _isLyricsSynced = _currentLyricsSynced.isNotEmpty;
+    } else {
+      _currentLyricsPlain = text;
+      _currentLyricsSynced = [];
+      _isLyricsSynced = false;
+    }
+  }
+
+  String _stripLrcTimestamps(String text) {
+    return text.replaceAll(RegExp(r'\[\d+:\d+(?:\.\d+)?\]'), '').trim();
+  }
+
   bool _isFading = false;
 
   Future<void> _pauseWithFade() async {
     if (_isFading || !_isPlaying) return;
     _isFading = true;
     final currentVol = _volume;
-    for (int i = 10; i >= 0; i--) {
-      if (!mounted) break;
-      await _audioPlayer.setVolume(currentVol * (i / 10.0));
-      await Future.delayed(const Duration(milliseconds: 15));
+    if (_crossfadeDuration > 0) {
+      final int steps = 10;
+      final int stepDelay = (_crossfadeDuration / steps).round();
+      for (int i = steps; i >= 0; i--) {
+        if (!mounted) break;
+        await _audioPlayer.setVolume(currentVol * (i / steps.toDouble()));
+        if (stepDelay > 0) {
+          await Future.delayed(Duration(milliseconds: stepDelay));
+        }
+      }
     }
     await _audioPlayer.pause();
     await _audioPlayer.setVolume(currentVol);
@@ -1241,13 +1985,44 @@ class _MainScreenState extends State<MainScreen> {
     final currentVol = _volume;
     await _audioPlayer.setVolume(0.0);
     _audioPlayer.play();
-    for (int i = 0; i <= 10; i++) {
-      if (!mounted) break;
-      await _audioPlayer.setVolume(currentVol * (i / 10.0));
-      await Future.delayed(const Duration(milliseconds: 15));
+    if (_crossfadeDuration > 0) {
+      final int steps = 10;
+      final int stepDelay = (_crossfadeDuration / steps).round();
+      for (int i = 0; i <= steps; i++) {
+        if (!mounted) break;
+        await _audioPlayer.setVolume(currentVol * (i / steps.toDouble()));
+        if (stepDelay > 0) {
+          await Future.delayed(Duration(milliseconds: stepDelay));
+        }
+      }
     }
     await _audioPlayer.setVolume(currentVol);
     _isFading = false;
+  }
+
+  Future<void> _smoothSeek(Duration position) async {
+    final double originalVolume = _volume;
+    final int steps = 5;
+    final int stepDelay = 15; // Total fade out = 75ms
+
+    try {
+      for (int i = steps; i >= 0; i--) {
+        if (!mounted) break;
+        await _audioPlayer.setVolume(originalVolume * (i / steps.toDouble()));
+        await Future.delayed(Duration(milliseconds: stepDelay));
+      }
+
+      await _audioPlayer.seek(position);
+
+      for (int i = 0; i <= steps; i++) {
+        if (!mounted) break;
+        await _audioPlayer.setVolume(originalVolume * (i / steps.toDouble()));
+        await Future.delayed(Duration(milliseconds: stepDelay));
+      }
+    } catch (_) {
+      await _audioPlayer.seek(position);
+      await _audioPlayer.setVolume(originalVolume);
+    }
   }
 
   void _toggleFavorite(String trackId) {
@@ -1285,13 +2060,20 @@ class _MainScreenState extends State<MainScreen> {
     IconData icon,
     String title,
     VoidCallback onTap, {
-    Color iconColor = Colors.white,
+    Color? iconColor,
   }) {
+    final isLight = themeModeNotifier.value == 'light';
+    final resolvedIconColor =
+        iconColor ?? (isLight ? Colors.black54 : Colors.white70);
     return ListTile(
-      leading: Icon(icon, color: iconColor),
+      leading: Icon(icon, color: resolvedIconColor),
       title: Text(
         title,
-        style: const TextStyle(color: Colors.white, fontSize: 16),
+        style: TextStyle(
+          color: isLight ? const Color(0xFF1A1A1A) : Colors.white,
+          fontSize: 16,
+          fontFamily: _activeFont,
+        ),
       ),
       onTap: onTap,
     );
@@ -1299,6 +2081,7 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   void dispose() {
+    _batteryCheckTimer?.cancel();
     _searchController.dispose();
     _lyricsScrollController.dispose();
     _detailScrollController.dispose();
@@ -1340,11 +2123,81 @@ class _MainScreenState extends State<MainScreen> {
           resizeToAvoidBottomInset: false,
           body: Stack(
             children: [
+              ValueListenableBuilder<String>(
+                valueListenable: themeModeNotifier,
+                builder: (context, themeMode, child) {
+                  return ValueListenableBuilder<String>(
+                    valueListenable: customThemeBgNotifier,
+                    builder: (context, customBg, child) {
+                      if (themeMode == 'custom' && customBg == 'custom_image') {
+                        return ValueListenableBuilder<String?>(
+                          valueListenable: customThemeBgPathNotifier,
+                          builder: (context, customPath, child) {
+                            if (customPath != null &&
+                                File(customPath).existsSync()) {
+                              return ValueListenableBuilder<double>(
+                                valueListenable: customThemeBgBlurNotifier,
+                                builder: (context, blurVal, child) {
+                                  return ValueListenableBuilder<double>(
+                                    valueListenable: customThemeBgDimNotifier,
+                                    builder: (context, dimVal, child) {
+                                      return ValueListenableBuilder<double>(
+                                        valueListenable:
+                                            customThemeBgScaleNotifier,
+                                        builder: (context, scaleVal, child) {
+                                          return Positioned.fill(
+                                            child: Stack(
+                                              children: [
+                                                Positioned.fill(
+                                                  child: ClipRect(
+                                                    child: ImageFiltered(
+                                                      imageFilter:
+                                                          ImageFilter.blur(
+                                                            sigmaX: blurVal,
+                                                            sigmaY: blurVal,
+                                                          ),
+                                                      child: Transform.scale(
+                                                        scale: scaleVal,
+                                                        child: Image.file(
+                                                          File(customPath),
+                                                          fit: BoxFit.cover,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                                Positioned.fill(
+                                                  child: Container(
+                                                    color: Colors.black
+                                                        .withOpacity(dimVal),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        },
+                                      );
+                                    },
+                                  );
+                                },
+                              );
+                            }
+                            return Positioned.fill(
+                              child: Container(color: const Color(0xFF0F0F15)),
+                            );
+                          },
+                        );
+                      }
+                      return const SizedBox.shrink();
+                    },
+                  );
+                },
+              ),
               SafeArea(
                 child: _isLoading
-                    ? const Center(
+                    ? Center(
                         child: CircularProgressIndicator(
-                          color: Color(0xFF1DB954),
+                          color: _activeAccentColor,
                         ),
                       )
                     : Column(
@@ -1395,6 +2248,9 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Widget _buildHeader() {
+    final isLight = themeModeNotifier.value == 'light';
+    final headerTextColor = isLight ? const Color(0xFF1A1A1A) : Colors.white;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       child: SizedBox(
@@ -1411,15 +2267,15 @@ class _MainScreenState extends State<MainScreen> {
                   : _currentPageIndex == 2
                   ? 'Artists'
                   : 'Albums',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 32,
                 fontWeight: FontWeight.w800,
                 letterSpacing: -1.0,
-                color: Colors.white,
+                color: headerTextColor,
               ),
             ),
             IconButton(
-              icon: const Icon(Icons.settings, color: Colors.white),
+              icon: Icon(Icons.settings, color: headerTextColor),
               onPressed: () {
                 Navigator.push(
                   context,
@@ -1434,6 +2290,160 @@ class _MainScreenState extends State<MainScreen> {
                       onResetData: _resetAppData,
                       sleepTimerNotifier: _sleepTimerNotifier,
                       onManageFolders: () => _showFolderScanDialog(context),
+                      playCountThreshold: _playCountThreshold,
+                      onSetPlayCountThreshold: (seconds) async {
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.setInt('playCountThreshold', seconds);
+                        setState(() {
+                          _playCountThreshold = seconds;
+                        });
+                      },
+                      activeFont: _activeFont,
+                      onSetFont: (fontName) async {
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.setString('activeFont', fontName);
+                        setState(() {
+                          _activeFont = fontName;
+                        });
+                        activeFontNotifier.value = fontName;
+                      },
+                      fontScale: _fontScale,
+                      onSetFontScale: (scale) async {
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.setDouble('fontScale', scale);
+                        setState(() {
+                          _fontScale = scale;
+                        });
+                        fontScaleNotifier.value = scale;
+                      },
+                      themeAccentPreset: _themeAccentPreset,
+                      activeAccentColor: _activeAccentColor,
+                      dominantColorNotifier: _dominantColorNotifier,
+                      onSetThemeAccent: (preset) async {
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.setString('themeAccentPreset', preset);
+                        setState(() {
+                          _themeAccentPreset = preset;
+                        });
+                      },
+                      playerBackgroundStyle: _playerBackgroundStyle,
+                      playerBackgroundStyleNotifier:
+                          _playerBackgroundStyleNotifier,
+                      onSetPlayerBackgroundStyle: (style) async {
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.setString('playerBackgroundStyle', style);
+                        setState(() {
+                          _playerBackgroundStyle = style;
+                        });
+                        _playerBackgroundStyleNotifier.value = style;
+                      },
+                      playerCustomBgPath: _playerCustomBgPath,
+                      playerCustomBgPathNotifier: _playerCustomBgPathNotifier,
+                      onSetPlayerCustomBgPath: (path) async {
+                        final prefs = await SharedPreferences.getInstance();
+                        if (path != null) {
+                          await prefs.setString('playerCustomBgPath', path);
+                        } else {
+                          await prefs.remove('playerCustomBgPath');
+                        }
+                        setState(() {
+                          _playerCustomBgPath = path;
+                        });
+                        _playerCustomBgPathNotifier.value = path;
+                      },
+                      playerCustomBgBlur: _playerCustomBgBlur,
+                      playerCustomBgBlurNotifier: _playerCustomBgBlurNotifier,
+                      onSetPlayerCustomBgBlur: (blur) async {
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.setDouble('playerCustomBgBlur', blur);
+                        setState(() {
+                          _playerCustomBgBlur = blur;
+                        });
+                        _playerCustomBgBlurNotifier.value = blur;
+                      },
+                      playerCustomBgDim: _playerCustomBgDim,
+                      playerCustomBgDimNotifier: _playerCustomBgDimNotifier,
+                      onSetPlayerCustomBgDim: (dim) async {
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.setDouble('playerCustomBgDim', dim);
+                        setState(() {
+                          _playerCustomBgDim = dim;
+                        });
+                        _playerCustomBgDimNotifier.value = dim;
+                      },
+                      playerCustomBgScale: _playerCustomBgScale,
+                      playerCustomBgScaleNotifier: _playerCustomBgScaleNotifier,
+                      onSetPlayerCustomBgScale: (scale) async {
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.setDouble('playerCustomBgScale', scale);
+                        setState(() {
+                          _playerCustomBgScale = scale;
+                        });
+                        _playerCustomBgScaleNotifier.value = scale;
+                      },
+                      themeMode: _themeMode,
+                      onSetThemeMode: (mode) async {
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.setString('themeMode', mode);
+                        setState(() {
+                          _themeMode = mode;
+                        });
+                        themeModeNotifier.value = mode;
+                      },
+                      customThemeBg: _customThemeBg,
+                      customThemeBgNotifier: customThemeBgNotifier,
+                      onSetCustomThemeBg: (customBg) async {
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.setString('customThemeBg', customBg);
+                        setState(() {
+                          _customThemeBg = customBg;
+                        });
+                        customThemeBgNotifier.value = customBg;
+                      },
+                      customThemeBgPath: _customThemeBgPath,
+                      customThemeBgPathNotifier: _customThemeBgPathNotifier,
+                      onSetCustomThemeBgPath: (path) async {
+                        final prefs = await SharedPreferences.getInstance();
+                        if (path != null) {
+                          await prefs.setString('customThemeBgPath', path);
+                        } else {
+                          await prefs.remove('customThemeBgPath');
+                        }
+                        setState(() {
+                          _customThemeBgPath = path;
+                        });
+                        _customThemeBgPathNotifier.value = path;
+                      },
+                      customThemeBgBlur: _customThemeBgBlur,
+                      customThemeBgBlurNotifier: _customThemeBgBlurNotifier,
+                      onSetCustomThemeBgBlur: (blur) async {
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.setDouble('customThemeBgBlur', blur);
+                        setState(() {
+                          _customThemeBgBlur = blur;
+                        });
+                        _customThemeBgBlurNotifier.value = blur;
+                      },
+                      customThemeBgDim: _customThemeBgDim,
+                      customThemeBgDimNotifier: _customThemeBgDimNotifier,
+                      onSetCustomThemeBgDim: (dim) async {
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.setDouble('customThemeBgDim', dim);
+                        setState(() {
+                          _customThemeBgDim = dim;
+                        });
+                        _customThemeBgDimNotifier.value = dim;
+                      },
+                      customThemeBgScale: _customThemeBgScale,
+                      customThemeBgScaleNotifier: _customThemeBgScaleNotifier,
+                      onSetCustomThemeBgScale: (scale) async {
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.setDouble('customThemeBgScale', scale);
+                        setState(() {
+                          _customThemeBgScale = scale;
+                        });
+                        _customThemeBgScaleNotifier.value = scale;
+                      },
                     ),
                   ),
                 );
@@ -1575,20 +2585,33 @@ class _MainScreenState extends State<MainScreen> {
           : _buildStackedArtwork(songs, color, icon, title == 'Favourites'),
       title: Text(
         title,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 16,
           fontWeight: FontWeight.w600,
-          color: Colors.white,
+          color: themeModeNotifier.value == 'light'
+              ? const Color(0xFF1A1A1A)
+              : Colors.white,
         ),
       ),
       subtitle: Text(
         '${songs.length} songs',
-        style: const TextStyle(fontSize: 13, color: Colors.white54),
+        style: TextStyle(
+          fontSize: 13,
+          color: themeModeNotifier.value == 'light'
+              ? Colors.black54
+              : Colors.white54,
+        ),
       ),
       trailing: Transform.translate(
         offset: const Offset(8, 0),
         child: IconButton(
-          icon: const Icon(Icons.more_vert, color: Colors.white24, size: 20),
+          icon: Icon(
+            Icons.more_vert,
+            color: themeModeNotifier.value == 'light'
+                ? Colors.black26
+                : Colors.white24,
+            size: 20,
+          ),
           padding: EdgeInsets.zero,
           constraints: const BoxConstraints(),
           onPressed: () => _showPlaylistOptions(context, title, songs),
@@ -1757,16 +2780,12 @@ class _MainScreenState extends State<MainScreen> {
                   ),
                   const Spacer(),
                   if (_isShuffle)
-                    const Icon(
-                      Icons.shuffle,
-                      color: Color(0xFF1DB954),
-                      size: 18,
-                    ),
+                    Icon(Icons.shuffle, color: _activeAccentColor, size: 18),
                   if (_isShuffle) const SizedBox(width: 8),
                   if (_repeatMode != 0)
                     Icon(
                       _repeatMode == 2 ? Icons.repeat_one : Icons.repeat,
-                      color: const Color(0xFF1DB954),
+                      color: _activeAccentColor,
                       size: 18,
                     ),
                 ],
@@ -1791,7 +2810,7 @@ class _MainScreenState extends State<MainScreen> {
                             height: 24,
                             child: Center(
                               child: MiniMusicVisualizer(
-                                color: const Color(0xFF1DB954),
+                                color: _activeAccentColor,
                                 width: 4,
                                 height: 14,
                                 radius: 2,
@@ -1805,9 +2824,7 @@ class _MainScreenState extends State<MainScreen> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: isCurrent
-                            ? const Color(0xFF1DB954)
-                            : Colors.white,
+                        color: isCurrent ? _activeAccentColor : Colors.white,
                         fontWeight: isCurrent
                             ? FontWeight.bold
                             : FontWeight.normal,
@@ -1860,4 +2877,11 @@ class CustomTrackShape extends RoundedRectSliderTrackShape {
     final double trackWidth = parentBox.size.width;
     return Rect.fromLTWH(trackLeft, trackTop, trackWidth, trackHeight);
   }
+}
+
+class LyricsLine {
+  final Duration time;
+  final String text;
+
+  LyricsLine({required this.time, required this.text});
 }

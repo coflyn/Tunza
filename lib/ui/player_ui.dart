@@ -108,14 +108,14 @@ extension _PlayerUI on _MainScreenState {
                 onPressed: () => _playPrevious(),
               ),
               _processingState == ProcessingState.loading
-                  ? const Padding(
+                  ? Padding(
                       padding: EdgeInsets.symmetric(horizontal: 12),
                       child: SizedBox(
                         width: 20,
                         height: 20,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: Color(0xFF1DB954),
+                          color: _activeAccentColor,
                         ),
                       ),
                     )
@@ -162,92 +162,363 @@ extension _PlayerUI on _MainScreenState {
           child: Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.55),
+              color: Colors.black.withValues(alpha: 0.65),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
             ),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // Header (Mirrored with Now Playing View)
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'Lyrics',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                    IconButton(
+                      icon: const Icon(
+                        Icons.keyboard_arrow_down,
+                        color: Colors.white54,
+                        size: 28,
+                      ),
+                      onPressed: () => setState(() => _showLyrics = false),
+                    ),
+                    Expanded(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            "LYRICS",
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 10,
+                              color: Colors.white38,
+                              letterSpacing: 1.5,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            currentTrack.title,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: Colors.white,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
                       ),
                     ),
                     IconButton(
                       icon: const Icon(
-                        Icons.close,
-                        color: Colors.white60,
-                        size: 20,
+                        Icons.edit_note_rounded,
+                        color: Colors.white70,
+                        size: 26,
                       ),
-                      onPressed: () => setState(() => _showLyrics = false),
+                      tooltip: 'Edit Lyrics',
+                      onPressed: () => _showManualLyricsEditor(currentTrack),
                     ),
                   ],
                 ),
                 const SizedBox(height: 16),
+
+                // Content area based on loading & sync state
                 Expanded(
-                  child: StreamBuilder<Duration>(
-                    stream: _audioPlayer.positionStream,
-                    builder: (context, snapshot) {
-                      final position = snapshot.data ?? Duration.zero;
-                      final duration = _audioPlayer.duration ?? Duration.zero;
-                      final ratio = duration.inMilliseconds > 0
-                          ? position.inMilliseconds / duration.inMilliseconds
-                          : 0.0;
-                      final highlightedIndex =
-                          (ratio * currentTrack.lyrics.length).floor();
-
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        if (_lyricsScrollController.hasClients) {
-                          final targetOffset = highlightedIndex * 42.0;
-                          _lyricsScrollController.animateTo(
-                            targetOffset.clamp(
-                              0.0,
-                              _lyricsScrollController.position.maxScrollExtent,
-                            ),
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeInOut,
-                          );
-                        }
-                      });
-
-                      return ListView.builder(
-                        controller: _lyricsScrollController,
-                        physics: const BouncingScrollPhysics(),
-                        itemCount: currentTrack.lyrics.length,
-                        itemBuilder: (context, index) {
-                          final lyric = currentTrack.lyrics[index];
-                          final isHighlighted = index == highlightedIndex;
-
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 6.0),
-                            child: Text(
-                              lyric,
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: isHighlighted
-                                    ? const Color(0xFF1DB954)
-                                    : Colors.white.withValues(alpha: 0.3),
-                              ),
-                            ),
-                          );
-                        },
-                      );
-                    },
-                  ),
+                  child: _isLyricsLoading
+                      ? Center(
+                          child: CircularProgressIndicator(
+                            color: _activeAccentColor,
+                          ),
+                        )
+                      : (_isLyricsSynced
+                            ? _buildSyncedLyricsList(currentTrack)
+                            : _buildPlainLyricsView(currentTrack)),
                 ),
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildSyncedLyricsList(Track currentTrack) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double viewportHeight = constraints.maxHeight;
+        final double itemHeight = 70.0;
+        final double verticalPadding = (viewportHeight / 2) - (itemHeight / 2);
+
+        return StreamBuilder<Duration>(
+          stream: _audioPlayer.positionStream,
+          builder: (context, snapshot) {
+            final position = snapshot.data ?? Duration.zero;
+
+            // Find activeIndex
+            int activeIndex = -1;
+            for (int i = 0; i < _currentLyricsSynced.length; i++) {
+              if (position >= _currentLyricsSynced[i].time) {
+                activeIndex = i;
+              } else {
+                break;
+              }
+            }
+
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (_lyricsScrollController.hasClients &&
+                  activeIndex != -1 &&
+                  activeIndex != _lastActiveLyricsIndex) {
+                _lastActiveLyricsIndex = activeIndex;
+                final targetOffset = activeIndex * itemHeight;
+                _lyricsScrollController.animateTo(
+                  targetOffset.clamp(
+                    0.0,
+                    _lyricsScrollController.position.maxScrollExtent,
+                  ),
+                  duration: const Duration(milliseconds: 400),
+                  curve: Curves.easeOutCubic,
+                );
+              }
+            });
+
+            return ListView.builder(
+              controller: _lyricsScrollController,
+              physics: const BouncingScrollPhysics(),
+              padding: EdgeInsets.symmetric(vertical: verticalPadding),
+              itemCount: _currentLyricsSynced.length,
+              itemBuilder: (context, index) {
+                final line = _currentLyricsSynced[index];
+                final isHighlighted = index == activeIndex;
+
+                return GestureDetector(
+                  onTap: () {
+                    _smoothSeek(line.time);
+                  },
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minHeight: itemHeight),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16.0,
+                        vertical: 8.0,
+                      ),
+                      alignment: Alignment.center,
+                      color: Colors.transparent,
+                      width: double.infinity,
+                      child: AnimatedDefaultTextStyle(
+                        duration: const Duration(milliseconds: 250),
+                        curve: Curves.easeOut,
+                        style: TextStyle(
+                          fontSize: isHighlighted ? 22 : 17,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: _activeFont,
+                          color: isHighlighted
+                              ? _activeAccentColor
+                              : Colors.white.withValues(alpha: 0.35),
+                        ),
+                        child: Text(line.text, textAlign: TextAlign.center),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildPlainLyricsView(Track currentTrack) {
+    if (_currentLyricsPlain == null || _currentLyricsPlain!.trim().isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.lyrics_outlined, color: Colors.white30, size: 48),
+            const SizedBox(height: 12),
+            Text(
+              'No lyrics found online.',
+              style: TextStyle(
+                color: Colors.white54,
+                fontFamily: _activeFont,
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: () => _showManualLyricsEditor(currentTrack),
+              icon: const Icon(Icons.add, size: 16),
+              label: const Text('Add Lyrics Manually'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _activeAccentColor,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8.0),
+        child: Text(
+          _currentLyricsPlain!,
+          style: TextStyle(
+            fontSize: 16,
+            height: 1.6,
+            fontFamily: _activeFont,
+            color: Colors.white.withValues(alpha: 0.85),
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showManualLyricsEditor(Track currentTrack) {
+    final textController = TextEditingController(
+      text: _currentLyricsPlain ?? '',
+    );
+
+    SharedPreferences.getInstance().then((prefs) {
+      final manualKey = 'lyrics_manual_${currentTrack.id}';
+      if (prefs.containsKey(manualKey)) {
+        textController.text = prefs.getString(manualKey) ?? '';
+      } else {
+        final cacheKey = 'lyrics_cache_${currentTrack.id}';
+        if (prefs.containsKey(cacheKey)) {
+          try {
+            final data = jsonDecode(prefs.getString(cacheKey) ?? '');
+            if (data['syncedLyrics'] != null) {
+              textController.text = data['syncedLyrics'];
+            } else if (data['plainLyrics'] != null) {
+              textController.text = data['plainLyrics'];
+            }
+          } catch (_) {}
+        }
+      }
+    });
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1E1E1E),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Text(
+            'Edit/Add Lyrics',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontFamily: _activeFont,
+            ),
+          ),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Paste plain lyrics or synced LRC format lyrics below.',
+                  style: TextStyle(
+                    color: Colors.white54,
+                    fontSize: 12,
+                    fontFamily: _activeFont,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: textController,
+                  maxLines: 8,
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                  decoration: InputDecoration(
+                    hintText: 'Type or paste lyrics here...',
+                    hintStyle: const TextStyle(color: Colors.white24),
+                    filled: true,
+                    fillColor: Colors.white.withValues(alpha: 0.05),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    final cleanTitle = currentTrack.title;
+                    final cleanArtist = currentTrack.artist.trim().isEmpty
+                        ? 'Unknown Artist'
+                        : currentTrack.artist;
+                    final query = Uri.encodeComponent(
+                      '$cleanArtist $cleanTitle lyrics',
+                    );
+                    final url = Uri.parse(
+                      'https://www.google.com/search?q=$query',
+                    );
+                    if (await canLaunchUrl(url)) {
+                      await launchUrl(
+                        url,
+                        mode: LaunchMode.externalApplication,
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.search, size: 18),
+                  label: const Text('Search on Google'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white10,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: Colors.white38),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final navigator = Navigator.of(context);
+                final prefs = await SharedPreferences.getInstance();
+                final manualKey = 'lyrics_manual_${currentTrack.id}';
+                final text = textController.text.trim();
+                if (text.isEmpty) {
+                  await prefs.remove(manualKey);
+                } else {
+                  await prefs.setString(manualKey, text);
+                }
+                navigator.pop();
+                _loadLyricsForTrack(currentTrack);
+                showTunzaToast('Lyrics updated!');
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _activeAccentColor,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -340,31 +611,159 @@ extension _PlayerUI on _MainScreenState {
         },
         child: Stack(
           children: [
-            Positioned.fill(child: Container(color: const Color(0xFF0A0A0A))),
-            Positioned.fill(
-              child: TweenAnimationBuilder<Color?>(
-                tween: ColorTween(
-                  begin: const Color(0xFF1E1E1E),
-                  end: _dominantColor ?? const Color(0xFF1E1E1E),
-                ),
-                duration: const Duration(milliseconds: 800),
-                builder: (context, Color? color, child) {
-                  return Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          color ?? const Color(0xFF1E1E1E),
-                          color != null
-                              ? Color.lerp(color, Colors.black, 0.85)!
-                              : const Color(0xFF0A0A0A),
-                        ],
+            ValueListenableBuilder<String>(
+              valueListenable: _playerBackgroundStyleNotifier,
+              builder: (context, style, child) {
+                if (style == 'amoled') {
+                  return Positioned.fill(
+                    child: Container(color: const Color(0xFF000000)),
+                  );
+                } else if (style == 'blur') {
+                  return Stack(
+                    children: [
+                      Positioned.fill(
+                        child: Container(color: const Color(0xFF0A0A0A)),
                       ),
+                      Positioned.fill(
+                        child: ClipRect(
+                          child: ImageFiltered(
+                            imageFilter: ImageFilter.blur(
+                              sigmaX: 45.0,
+                              sigmaY: 45.0,
+                            ),
+                            child: Opacity(
+                              opacity: 0.55,
+                              child: Transform.scale(
+                                scale: 2.2,
+                                child: _buildTrackArtwork(
+                                  currentTrack,
+                                  size: 400,
+                                  radius: 0,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Positioned.fill(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.black.withValues(alpha: 0.35),
+                                Colors.black.withValues(alpha: 0.75),
+                                Colors.black.withValues(alpha: 0.95),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                } else if (style == 'custom') {
+                  return ValueListenableBuilder<String?>(
+                    valueListenable: _playerCustomBgPathNotifier,
+                    builder: (context, customPath, child) {
+                      return ValueListenableBuilder<double>(
+                        valueListenable: _playerCustomBgBlurNotifier,
+                        builder: (context, blurVal, child) {
+                          return ValueListenableBuilder<double>(
+                            valueListenable: _playerCustomBgDimNotifier,
+                            builder: (context, dimVal, child) {
+                              return ValueListenableBuilder<double>(
+                                valueListenable: _playerCustomBgScaleNotifier,
+                                builder: (context, scaleVal, child) {
+                                  return Stack(
+                                    children: [
+                                      Positioned.fill(
+                                        child: Container(
+                                          color: const Color(0xFF0A0A0A),
+                                        ),
+                                      ),
+                                      if (customPath != null &&
+                                          File(customPath).existsSync())
+                                        Positioned.fill(
+                                          child: ClipRect(
+                                            child: ImageFiltered(
+                                              imageFilter: ImageFilter.blur(
+                                                sigmaX: blurVal,
+                                                sigmaY: blurVal,
+                                              ),
+                                              child: Transform.scale(
+                                                scale: scaleVal,
+                                                child: Image.file(
+                                                  File(customPath),
+                                                  fit: BoxFit.cover,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      Positioned.fill(
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            gradient: LinearGradient(
+                                              begin: Alignment.topCenter,
+                                              end: Alignment.bottomCenter,
+                                              colors: [
+                                                Colors.black.withValues(
+                                                  alpha: dimVal * 0.5,
+                                                ),
+                                                Colors.black.withValues(
+                                                  alpha: dimVal * 1.2 > 1.0
+                                                      ? 1.0
+                                                      : dimVal * 1.2,
+                                                ),
+                                                Colors.black.withValues(
+                                                  alpha: dimVal * 1.8 > 1.0
+                                                      ? 1.0
+                                                      : dimVal * 1.8,
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                },
+                              );
+                            },
+                          );
+                        },
+                      );
+                    },
+                  );
+                } else {
+                  return Positioned.fill(
+                    child: TweenAnimationBuilder<Color?>(
+                      tween: ColorTween(
+                        begin: const Color(0xFF1E1E1E),
+                        end: _dominantColor ?? const Color(0xFF1E1E1E),
+                      ),
+                      duration: const Duration(milliseconds: 800),
+                      builder: (context, Color? color, child) {
+                        return Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                color ?? const Color(0xFF1E1E1E),
+                                color != null
+                                    ? Color.lerp(color, Colors.black, 0.85)!
+                                    : const Color(0xFF0A0A0A),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   );
-                },
-              ),
+                }
+              },
             ),
 
             SafeArea(
@@ -408,10 +807,10 @@ extension _PlayerUI on _MainScreenState {
                               );
                               return Text(
                                 'SLEEP IN $mins:$secs',
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontWeight: FontWeight.w600,
                                   fontSize: 13,
-                                  color: Color(0xFF1DB954),
+                                  color: _activeAccentColor,
                                   letterSpacing: 1.5,
                                 ),
                               );
@@ -516,7 +915,7 @@ extension _PlayerUI on _MainScreenState {
                                 ? Icons.favorite
                                 : Icons.favorite_border,
                             color: _favoriteTrackIds.contains(currentTrack.id)
-                                ? const Color(0xFF1DB954)
+                                ? _activeAccentColor
                                 : Colors.white60,
                             size: 26,
                           ),
@@ -582,7 +981,7 @@ extension _PlayerUI on _MainScreenState {
                                             (val * duration.inMilliseconds)
                                                 .toInt(),
                                       );
-                                      _audioPlayer.seek(newPosition);
+                                      _smoothSeek(newPosition);
                                       _dragValue = null;
                                     },
                                   ),
@@ -734,23 +1133,24 @@ extension _PlayerUI on _MainScreenState {
                           icon: Icon(
                             Icons.lyrics_outlined,
                             color: _showLyrics
-                                ? const Color(0xFF1DB954)
+                                ? _activeAccentColor
                                 : Colors.white54,
                             size: 20,
                           ),
                           onPressed: () {
-                            Fluttertoast.showToast(
-                              msg: "Lyrics coming soon",
-                              toastLength: Toast.LENGTH_SHORT,
-                              gravity: ToastGravity.BOTTOM,
-                            );
+                            setState(() {
+                              _showLyrics = !_showLyrics;
+                            });
+                            if (_showLyrics) {
+                              _loadLyricsForTrack(currentTrack);
+                            }
                           },
                         ),
                         IconButton(
                           icon: Icon(
                             Icons.shuffle,
                             color: _isShuffle
-                                ? const Color(0xFF1DB954)
+                                ? _activeAccentColor
                                 : Colors.white54,
                             size: 20,
                           ),
@@ -773,7 +1173,7 @@ extension _PlayerUI on _MainScreenState {
                           icon: Icon(
                             _repeatMode == 2 ? Icons.repeat_one : Icons.repeat,
                             color: _repeatMode != 0
-                                ? const Color(0xFF1DB954)
+                                ? _activeAccentColor
                                 : Colors.white54,
                             size: 20,
                           ),
