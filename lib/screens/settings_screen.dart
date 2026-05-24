@@ -59,6 +59,9 @@ class SettingsScreen extends StatefulWidget {
   final double customThemeBgScale;
   final ValueNotifier<double> customThemeBgScaleNotifier;
   final Function(double) onSetCustomThemeBgScale;
+  final String customThemeStyle;
+  final ValueNotifier<String> customThemeStyleNotifier;
+  final Function(String) onSetCustomThemeStyle;
 
   const SettingsScreen({
     super.key,
@@ -109,6 +112,9 @@ class SettingsScreen extends StatefulWidget {
     required this.customThemeBgScale,
     required this.customThemeBgScaleNotifier,
     required this.onSetCustomThemeBgScale,
+    required this.customThemeStyle,
+    required this.customThemeStyleNotifier,
+    required this.onSetCustomThemeStyle,
   });
 
   @override
@@ -135,6 +141,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   double _customThemeBgBlur = 25.0;
   double _customThemeBgDim = 0.65;
   double _customThemeBgScale = 1.0;
+  String _customThemeStyle = 'dark';
   String _playerBackgroundStyle = 'gradient';
   String? _playerCustomBgPath;
   double _playerCustomBgBlur = 0.0;
@@ -341,6 +348,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _customThemeBgBlur = prefs.getDouble('customThemeBgBlur') ?? 25.0;
       _customThemeBgDim = prefs.getDouble('customThemeBgDim') ?? 0.65;
       _customThemeBgScale = prefs.getDouble('customThemeBgScale') ?? 1.0;
+      _customThemeStyle = prefs.getString('customThemeStyle') ?? 'dark';
       _playerBackgroundStyle =
           prefs.getString('playerBackgroundStyle') ?? 'gradient';
       _playerCustomBgPath = prefs.getString('playerCustomBgPath');
@@ -581,164 +589,120 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       if (_customThemeBgPath != null &&
                           File(_customThemeBgPath!).existsSync()) ...[
                         const SizedBox(height: 12),
-                        Center(
-                          child: Container(
-                            width: 140,
-                            height: 220,
-                            decoration: BoxDecoration(
-                              color: isLight
-                                  ? Colors.white
-                                  : const Color(0xFF0A0A0A),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: isLight
-                                    ? Colors.black12
-                                    : Colors.white10,
-                                width: 1.5,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.3),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 4),
+                        Builder(
+                          builder: (context) {
+                            bool isMockLight = false;
+                            if (_customThemeStyle == 'light') {
+                              isMockLight = true;
+                            } else if (_customThemeStyle == 'dynamic') {
+                              final activeCol =
+                                  widget.dominantColorNotifier.value ??
+                                  const Color(0xFF8E8E93);
+                              isMockLight = activeCol.computeLuminance() > 0.45;
+                            }
+                            return Center(
+                              child: Container(
+                                width: 140,
+                                height: 220,
+                                decoration: BoxDecoration(
+                                  color: isMockLight
+                                      ? Colors.white
+                                      : const Color(0xFF0A0A0A),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: isMockLight
+                                        ? Colors.black12
+                                        : Colors.white10,
+                                    width: 1.5,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.3),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(14),
-                              child: Stack(
-                                children: [
-                                  // Live blurred custom background image preview
-                                  Positioned.fill(
-                                    child: ClipRect(
-                                      child: ImageFiltered(
-                                        imageFilter: ImageFilter.blur(
-                                          sigmaX: _customThemeBgBlur / 2.0,
-                                          sigmaY: _customThemeBgBlur / 2.0,
-                                        ),
-                                        child: Transform.scale(
-                                          scale: _customThemeBgScale,
-                                          child: Image.file(
-                                            File(_customThemeBgPath!),
-                                            fit: BoxFit.cover,
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(14),
+                                  child: Stack(
+                                    children: [
+                                      // Live blurred custom background image preview
+                                      Positioned.fill(
+                                        child: ClipRect(
+                                          child: ImageFiltered(
+                                            imageFilter: ImageFilter.blur(
+                                              sigmaX: _customThemeBgBlur / 2.0,
+                                              sigmaY: _customThemeBgBlur / 2.0,
+                                            ),
+                                            child: Transform.scale(
+                                              scale: _customThemeBgScale,
+                                              child: Image.file(
+                                                File(_customThemeBgPath!),
+                                                fit: BoxFit.cover,
+                                              ),
+                                            ),
                                           ),
                                         ),
                                       ),
-                                    ),
-                                  ),
-                                  // Theme dimming overlay
-                                  Positioned.fill(
-                                    child: Container(
-                                      color: isLight
-                                          ? Colors.white.withOpacity(0.15)
-                                          : Colors.black.withOpacity(
-                                              _customThemeBgDim,
-                                            ),
-                                    ),
-                                  ),
-                                  Padding(
-                                    padding: const EdgeInsets.all(10),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        const SizedBox(height: 4),
-                                        Container(
-                                          width: 45,
-                                          height: 8,
-                                          decoration: BoxDecoration(
-                                            color: isLight
-                                                ? const Color(0xFF1A1A1A)
-                                                : Colors.white,
-                                            borderRadius: BorderRadius.circular(
-                                              2,
-                                            ),
-                                          ),
+                                      // Theme dimming overlay
+                                      Positioned.fill(
+                                        child: Container(
+                                          color: isMockLight
+                                              ? Colors.white.withOpacity(0.15)
+                                              : Colors.black.withOpacity(
+                                                  _customThemeBgDim,
+                                                ),
                                         ),
-                                        const SizedBox(height: 12),
-                                        Container(
-                                          height: 14,
-                                          decoration: BoxDecoration(
-                                            color: isLight
-                                                ? Colors.black.withOpacity(0.06)
-                                                : Colors.white10,
-                                            borderRadius: BorderRadius.circular(
-                                              4,
+                                      ),
+                                      Padding(
+                                        padding: const EdgeInsets.all(10),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            const SizedBox(height: 4),
+                                            Container(
+                                              width: 45,
+                                              height: 8,
+                                              decoration: BoxDecoration(
+                                                color: isMockLight
+                                                    ? const Color(0xFF1A1A1A)
+                                                    : Colors.white,
+                                                borderRadius:
+                                                    BorderRadius.circular(2),
+                                              ),
                                             ),
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              const SizedBox(width: 4),
-                                              Icon(
-                                                Icons.search,
-                                                size: 8,
-                                                color: isLight
-                                                    ? Colors.black38
-                                                    : Colors.white38,
+                                            const SizedBox(height: 12),
+                                            Container(
+                                              height: 14,
+                                              decoration: BoxDecoration(
+                                                color: isMockLight
+                                                    ? Colors.black.withOpacity(
+                                                        0.06,
+                                                      )
+                                                    : Colors.white10,
+                                                borderRadius:
+                                                    BorderRadius.circular(4),
                                               ),
-                                              const SizedBox(width: 4),
-                                              Container(
-                                                width: 50,
-                                                height: 4,
-                                                decoration: BoxDecoration(
-                                                  color: isLight
-                                                      ? Colors.black26
-                                                      : Colors.white24,
-                                                  borderRadius:
-                                                      BorderRadius.circular(1),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        const SizedBox(height: 16),
-                                        // Mock Song Tile list items!
-                                        for (int i = 0; i < 3; i++) ...[
-                                          Row(
-                                            children: [
-                                              Container(
-                                                width: 16,
-                                                height: 16,
-                                                decoration: BoxDecoration(
-                                                  color: _activeAccentColor
-                                                      .withOpacity(0.2),
-                                                  borderRadius:
-                                                      BorderRadius.circular(3),
-                                                ),
-                                                child: Icon(
-                                                  Icons.music_note,
-                                                  size: 9,
-                                                  color: _activeAccentColor,
-                                                ),
-                                              ),
-                                              const SizedBox(width: 6),
-                                              Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
+                                              child: Row(
                                                 children: [
+                                                  const SizedBox(width: 4),
+                                                  Icon(
+                                                    Icons.search,
+                                                    size: 8,
+                                                    color: isMockLight
+                                                        ? Colors.black38
+                                                        : Colors.white38,
+                                                  ),
+                                                  const SizedBox(width: 4),
                                                   Container(
-                                                    width: 38,
+                                                    width: 50,
                                                     height: 4,
                                                     decoration: BoxDecoration(
-                                                      color: isLight
-                                                          ? const Color(
-                                                              0xFF1A1A1A,
-                                                            )
-                                                          : Colors.white,
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            1,
-                                                          ),
-                                                    ),
-                                                  ),
-                                                  const SizedBox(height: 3),
-                                                  Container(
-                                                    width: 25,
-                                                    height: 3,
-                                                    decoration: BoxDecoration(
-                                                      color: isLight
-                                                          ? Colors.black45
-                                                          : Colors.white38,
+                                                      color: isMockLight
+                                                          ? Colors.black26
+                                                          : Colors.white24,
                                                       borderRadius:
                                                           BorderRadius.circular(
                                                             1,
@@ -747,17 +711,102 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                                   ),
                                                 ],
                                               ),
+                                            ),
+                                            const SizedBox(height: 16),
+                                            // Mock Song Tile list items!
+                                            for (int i = 0; i < 3; i++) ...[
+                                              Row(
+                                                children: [
+                                                  Container(
+                                                    width: 16,
+                                                    height: 16,
+                                                    decoration: BoxDecoration(
+                                                      color: _activeAccentColor
+                                                          .withOpacity(0.2),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            3,
+                                                          ),
+                                                    ),
+                                                    child: Icon(
+                                                      Icons.music_note,
+                                                      size: 9,
+                                                      color: _activeAccentColor,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 6),
+                                                  Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    children: [
+                                                      Container(
+                                                        width: 38,
+                                                        height: 4,
+                                                        decoration: BoxDecoration(
+                                                          color: isMockLight
+                                                              ? const Color(
+                                                                  0xFF1A1A1A,
+                                                                )
+                                                              : Colors.white,
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                1,
+                                                              ),
+                                                        ),
+                                                      ),
+                                                      const SizedBox(height: 3),
+                                                      Container(
+                                                        width: 25,
+                                                        height: 3,
+                                                        decoration: BoxDecoration(
+                                                          color: isMockLight
+                                                              ? Colors.black45
+                                                              : Colors.white38,
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                1,
+                                                              ),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ],
+                                              ),
+                                              const SizedBox(height: 10),
                                             ],
-                                          ),
-                                          const SizedBox(height: 10),
-                                        ],
-                                      ],
-                                    ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ],
+                                ),
                               ),
-                            ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        // Overlay Theme Style Selector
+                        Text(
+                          'Overlay Theme Style',
+                          style: TextStyle(
+                            color: isLight ? Colors.black54 : Colors.white70,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            fontFamily: _activeFont,
                           ),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(child: _buildStylePill('dark', 'Dark')),
+                            const SizedBox(width: 8),
+                            Expanded(child: _buildStylePill('light', 'Light')),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _buildStylePill('dynamic', 'Dynamic'),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 16),
                         // Blur Slider
@@ -3411,6 +3460,53 @@ class _SettingsScreenState extends State<SettingsScreen> {
         });
         widget.onSetThemeMode(id);
       },
+    );
+  }
+
+  Widget _buildStylePill(String id, String label) {
+    final isSelected = _customThemeStyle == id;
+    final isLight = _selectedThemeMode == 'light';
+
+    return GestureDetector(
+      onTap: () async {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('customThemeStyle', id);
+        setState(() {
+          _customThemeStyle = id;
+        });
+        widget.onSetCustomThemeStyle(id);
+        showTunzaToast('Theme style set to $label');
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? _activeAccentColor
+              : (isLight
+                    ? Colors.black.withOpacity(0.05)
+                    : Colors.white.withValues(alpha: 0.05)),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected
+                ? _activeAccentColor
+                : (isLight ? Colors.black12 : Colors.white10),
+            width: 1,
+          ),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected
+                ? Colors.white
+                : (isLight ? Colors.black87 : Colors.white70),
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+            fontFamily: _activeFont,
+          ),
+        ),
+      ),
     );
   }
 

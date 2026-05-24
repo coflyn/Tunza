@@ -51,6 +51,9 @@ final ValueNotifier<double> customThemeBgDimNotifier = ValueNotifier<double>(
 final ValueNotifier<double> customThemeBgScaleNotifier = ValueNotifier<double>(
   1.0,
 );
+final ValueNotifier<String> customThemeStyleNotifier = ValueNotifier<String>(
+  'dark',
+);
 void showTunzaToast(String msg, {bool isLong = false}) {
   Fluttertoast.showToast(
     msg: msg,
@@ -60,6 +63,20 @@ void showTunzaToast(String msg, {bool isLong = false}) {
     textColor: Colors.white,
     fontSize: 14.0,
   );
+}
+
+bool get isAppLight {
+  final mode = themeModeNotifier.value;
+  if (mode == 'light') return true;
+  if (mode == 'custom') {
+    final style = customThemeStyleNotifier.value;
+    if (style == 'light') return true;
+    if (style == 'dynamic') {
+      final activeCol = dominantColorNotifier.value ?? const Color(0xFF8E8E93);
+      return activeCol.computeLuminance() > 0.45;
+    }
+  }
+  return false;
 }
 
 Color getAppBackgroundColor({
@@ -289,91 +306,106 @@ class TunzaApp extends StatelessWidget {
             return ValueListenableBuilder<Color?>(
               valueListenable: dominantColorNotifier,
               builder: (context, dominantColor, child) {
-                final appBgColor = getAppBackgroundColor(
-                  themeMode: themeMode,
-                  customBg: customThemeBg,
-                  artworkColor: dominantColor,
-                );
-                final appCardColor = getAppCardColor(
-                  themeMode: themeMode,
-                  appBgColor: appBgColor,
-                );
-                final isLight = themeMode == 'light';
-
                 return ValueListenableBuilder<String>(
-                  valueListenable: activeFontNotifier,
-                  builder: (context, fontName, child) {
-                    final baseTheme = isLight
-                        ? ThemeData.light()
-                        : ThemeData.dark();
-                    TextTheme textTheme;
-                    if (fontName == 'Spotify Style') {
-                      textTheme = GoogleFonts.figtreeTextTheme(
-                        baseTheme.textTheme,
-                      );
-                    } else if (fontName == 'Apple Music Style') {
-                      textTheme = GoogleFonts.interTextTheme(
-                        baseTheme.textTheme,
-                      );
-                    } else {
-                      textTheme = GoogleFonts.plusJakartaSansTextTheme(
-                        baseTheme.textTheme,
-                      );
+                  valueListenable: customThemeStyleNotifier,
+                  builder: (context, customThemeStyle, child) {
+                    final appBgColor = getAppBackgroundColor(
+                      themeMode: themeMode,
+                      customBg: customThemeBg,
+                      artworkColor: dominantColor,
+                    );
+                    final appCardColor = getAppCardColor(
+                      themeMode: themeMode,
+                      appBgColor: appBgColor,
+                    );
+
+                    bool isLight = themeMode == 'light';
+                    if (themeMode == 'custom') {
+                      if (customThemeStyle == 'light') {
+                        isLight = true;
+                      } else if (customThemeStyle == 'dynamic') {
+                        final activeCol =
+                            dominantColor ?? const Color(0xFF8E8E93);
+                        isLight = activeCol.computeLuminance() > 0.45;
+                      }
                     }
 
-                    return ValueListenableBuilder<double>(
-                      valueListenable: fontScaleNotifier,
-                      builder: (context, scale, child) {
-                        return MaterialApp(
-                          title: 'Tunza',
-                          debugShowCheckedModeBanner: false,
-                          builder: (context, child) {
-                            return MediaQuery(
-                              data: MediaQuery.of(
-                                context,
-                              ).copyWith(textScaleFactor: scale),
-                              child: child!,
+                    return ValueListenableBuilder<String>(
+                      valueListenable: activeFontNotifier,
+                      builder: (context, fontName, child) {
+                        final baseTheme = isLight
+                            ? ThemeData.light()
+                            : ThemeData.dark();
+                        TextTheme textTheme;
+                        if (fontName == 'Spotify Style') {
+                          textTheme = GoogleFonts.figtreeTextTheme(
+                            baseTheme.textTheme,
+                          );
+                        } else if (fontName == 'Apple Music Style') {
+                          textTheme = GoogleFonts.interTextTheme(
+                            baseTheme.textTheme,
+                          );
+                        } else {
+                          textTheme = GoogleFonts.plusJakartaSansTextTheme(
+                            baseTheme.textTheme,
+                          );
+                        }
+
+                        return ValueListenableBuilder<double>(
+                          valueListenable: fontScaleNotifier,
+                          builder: (context, scale, child) {
+                            return MaterialApp(
+                              title: 'Tunza',
+                              debugShowCheckedModeBanner: false,
+                              builder: (context, child) {
+                                return MediaQuery(
+                                  data: MediaQuery.of(
+                                    context,
+                                  ).copyWith(textScaleFactor: scale),
+                                  child: child!,
+                                );
+                              },
+                              theme: ThemeData(
+                                useMaterial3: true,
+                                brightness: isLight
+                                    ? Brightness.light
+                                    : Brightness.dark,
+                                scaffoldBackgroundColor: appBgColor,
+                                textTheme: textTheme.apply(
+                                  bodyColor: isLight
+                                      ? const Color(0xFF1A1A1A)
+                                      : Colors.white,
+                                  displayColor: isLight
+                                      ? const Color(0xFF1A1A1A)
+                                      : Colors.white,
+                                ),
+                                colorScheme: ColorScheme(
+                                  brightness: isLight
+                                      ? Brightness.light
+                                      : Brightness.dark,
+                                  primary: const Color(0xFF1DB954),
+                                  onPrimary: Colors.black,
+                                  secondary: const Color(0xFF1DB954),
+                                  onSecondary: Colors.black,
+                                  error: Colors.red,
+                                  onError: Colors.white,
+                                  surface: appCardColor,
+                                  onSurface: isLight
+                                      ? const Color(0xFF1A1A1A)
+                                      : Colors.white,
+                                  outline: isLight
+                                      ? Colors.black12
+                                      : Colors.white10,
+                                ),
+                                listTileTheme: ListTileThemeData(
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                              ),
+                              home: const MainScreen(),
                             );
                           },
-                          theme: ThemeData(
-                            useMaterial3: true,
-                            brightness: isLight
-                                ? Brightness.light
-                                : Brightness.dark,
-                            scaffoldBackgroundColor: appBgColor,
-                            textTheme: textTheme.apply(
-                              bodyColor: isLight
-                                  ? const Color(0xFF1A1A1A)
-                                  : Colors.white,
-                              displayColor: isLight
-                                  ? const Color(0xFF1A1A1A)
-                                  : Colors.white,
-                            ),
-                            colorScheme: ColorScheme(
-                              brightness: isLight
-                                  ? Brightness.light
-                                  : Brightness.dark,
-                              primary: const Color(0xFF1DB954),
-                              onPrimary: Colors.black,
-                              secondary: const Color(0xFF1DB954),
-                              onSecondary: Colors.black,
-                              error: Colors.red,
-                              onError: Colors.white,
-                              surface: appCardColor,
-                              onSurface: isLight
-                                  ? const Color(0xFF1A1A1A)
-                                  : Colors.white,
-                              outline: isLight
-                                  ? Colors.black12
-                                  : Colors.white10,
-                            ),
-                            listTileTheme: ListTileThemeData(
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                          ),
-                          home: const MainScreen(),
                         );
                       },
                     );
@@ -437,6 +469,11 @@ class _MainScreenState extends State<MainScreen> {
   Timer? _batteryCheckTimer;
   String _sortBy = 'date';
   String _detailSortBy = 'default';
+  final Set<String> _animatedTrackIds = {};
+  final Set<String> _animatedPlaylistIds = {};
+  final Set<String> _animatedArtistIds = {};
+  final Set<String> _animatedAlbumIds = {};
+  final Set<String> _animatedDetailTrackIds = {};
 
   List<Track> _allTracks = [];
   bool _isLoading = true;
@@ -513,6 +550,9 @@ class _MainScreenState extends State<MainScreen> {
   double _customThemeBgScale = 1.0;
   final ValueNotifier<double> _customThemeBgScaleNotifier =
       customThemeBgScaleNotifier;
+  String _customThemeStyle = 'dark';
+  final ValueNotifier<String> _customThemeStyleNotifier =
+      customThemeStyleNotifier;
 
   Color _ensureLuminance(Color color) {
     final hsl = HSLColor.fromColor(color);
@@ -594,12 +634,14 @@ class _MainScreenState extends State<MainScreen> {
       _customThemeBgBlur = prefs.getDouble('customThemeBgBlur') ?? 25.0;
       _customThemeBgDim = prefs.getDouble('customThemeBgDim') ?? 0.65;
       _customThemeBgScale = prefs.getDouble('customThemeBgScale') ?? 1.0;
+      _customThemeStyle = prefs.getString('customThemeStyle') ?? 'dark';
       themeModeNotifier.value = _themeMode;
       customThemeBgNotifier.value = _customThemeBg;
       customThemeBgPathNotifier.value = _customThemeBgPath;
       customThemeBgBlurNotifier.value = _customThemeBgBlur;
       customThemeBgDimNotifier.value = _customThemeBgDim;
       customThemeBgScaleNotifier.value = _customThemeBgScale;
+      customThemeStyleNotifier.value = _customThemeStyle;
       _playerBackgroundStyle =
           prefs.getString('playerBackgroundStyle') ?? 'gradient';
       _playerBackgroundStyleNotifier.value = _playerBackgroundStyle;
@@ -1231,7 +1273,13 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void _filterSongs() {
-    setState(() {});
+    setState(() {
+      _animatedTrackIds.clear();
+      _animatedPlaylistIds.clear();
+      _animatedArtistIds.clear();
+      _animatedAlbumIds.clear();
+      _animatedDetailTrackIds.clear();
+    });
   }
 
   Future<void> _updateDominantColor(Track track) async {
@@ -2062,7 +2110,7 @@ class _MainScreenState extends State<MainScreen> {
     VoidCallback onTap, {
     Color? iconColor,
   }) {
-    final isLight = themeModeNotifier.value == 'light';
+    final isLight = isAppLight;
     final resolvedIconColor =
         iconColor ?? (isLight ? Colors.black54 : Colors.white70);
     return ListTile(
@@ -2248,7 +2296,7 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Widget _buildHeader() {
-    final isLight = themeModeNotifier.value == 'light';
+    final isLight = isAppLight;
     final headerTextColor = isLight ? const Color(0xFF1A1A1A) : Colors.white;
 
     return Padding(
@@ -2444,6 +2492,16 @@ class _MainScreenState extends State<MainScreen> {
                         });
                         _customThemeBgScaleNotifier.value = scale;
                       },
+                      customThemeStyle: _customThemeStyle,
+                      customThemeStyleNotifier: _customThemeStyleNotifier,
+                      onSetCustomThemeStyle: (style) async {
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.setString('customThemeStyle', style);
+                        setState(() {
+                          _customThemeStyle = style;
+                        });
+                        _customThemeStyleNotifier.value = style;
+                      },
                     ),
                   ),
                 );
@@ -2525,7 +2583,12 @@ class _MainScreenState extends State<MainScreen> {
     IconData icon,
   ) {
     return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      contentPadding: const EdgeInsets.only(
+        left: 8,
+        right: 0,
+        top: 8,
+        bottom: 8,
+      ),
       onTap: () {
         setState(() {
           _selectedPlaylistDetail = title;
@@ -2588,28 +2651,22 @@ class _MainScreenState extends State<MainScreen> {
         style: TextStyle(
           fontSize: 16,
           fontWeight: FontWeight.w600,
-          color: themeModeNotifier.value == 'light'
-              ? const Color(0xFF1A1A1A)
-              : Colors.white,
+          color: isAppLight ? const Color(0xFF1A1A1A) : Colors.white,
         ),
       ),
       subtitle: Text(
         '${songs.length} songs',
         style: TextStyle(
           fontSize: 13,
-          color: themeModeNotifier.value == 'light'
-              ? Colors.black54
-              : Colors.white54,
+          color: isAppLight ? Colors.black54 : Colors.white54,
         ),
       ),
       trailing: Transform.translate(
-        offset: const Offset(8, 0),
+        offset: const Offset(12, 0),
         child: IconButton(
           icon: Icon(
             Icons.more_vert,
-            color: themeModeNotifier.value == 'light'
-                ? Colors.black26
-                : Colors.white24,
+            color: isAppLight ? Colors.black26 : Colors.white24,
             size: 20,
           ),
           padding: EdgeInsets.zero,

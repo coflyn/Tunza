@@ -25,6 +25,7 @@ extension _DetailViewsUI on _MainScreenState {
         _cachedDetailSongs == null ||
         _cachedDetailImage == null) {
       _cachedDetailKey = currentKey;
+      _animatedDetailTrackIds.clear();
       if (_detailScrollController.hasClients) {
         _detailScrollController.jumpTo(0);
       }
@@ -170,7 +171,7 @@ extension _DetailViewsUI on _MainScreenState {
     required Widget imageWidget,
     required List<Track> tracks,
   }) {
-    final isLight = themeModeNotifier.value == 'light';
+    final isLight = isAppLight;
     final scaffoldBgColor = getAppBackgroundColor(
       themeMode: themeModeNotifier.value,
       customBg: customThemeBgNotifier.value,
@@ -214,47 +215,67 @@ extension _DetailViewsUI on _MainScreenState {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Padding(
-              padding: const EdgeInsets.only(top: 48, left: 16, right: 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  IconButton(
-                    icon: Icon(
-                      Icons.keyboard_arrow_down,
-                      color: isLight ? const Color(0xFF1A1A1A) : Colors.white,
-                      size: 28,
+            SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 8),
+                    Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: isLight
+                            ? Colors.black.withValues(alpha: 0.08)
+                            : Colors.white.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
-                    onPressed: () {
-                      setState(() {
-                        _selectedPlaylistDetail = null;
-                        _selectedArtistDetail = null;
-                        _selectedAlbumDetail = null;
-                      });
-                    },
-                  ),
-                  Container(
-                    width: 40,
-                    height: 5,
-                    decoration: BoxDecoration(
-                      color: isLight
-                          ? Colors.black.withValues(alpha: 0.08)
-                          : Colors.white.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(2.5),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Transform.translate(
+                          offset: const Offset(-12, 0),
+                          child: IconButton(
+                            icon: Icon(
+                              Icons.keyboard_arrow_down,
+                              color: isLight
+                                  ? const Color(0xFF1A1A1A)
+                                  : Colors.white,
+                              size: 28,
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _selectedPlaylistDetail = null;
+                                _selectedArtistDetail = null;
+                                _selectedAlbumDetail = null;
+                              });
+                            },
+                          ),
+                        ),
+                        Transform.translate(
+                          offset: const Offset(12, 0),
+                          child: IconButton(
+                            icon: Icon(
+                              Icons.more_vert,
+                              color: isLight
+                                  ? const Color(0xFF1A1A1A)
+                                  : Colors.white,
+                              size: 28,
+                            ),
+                            onPressed: () =>
+                                _showDetailOptions(title, type, tracks),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  IconButton(
-                    icon: Icon(
-                      Icons.more_vert,
-                      color: isLight ? const Color(0xFF1A1A1A) : Colors.white,
-                      size: 28,
-                    ),
-                    onPressed: () => _showDetailOptions(title, type, tracks),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
             Container(
               width: 220,
               height: 220,

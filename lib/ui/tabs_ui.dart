@@ -23,10 +23,10 @@ extension _TabsUI on _MainScreenState {
         });
       },
       children: [
-        _buildSongsTab(),
-        _buildPlaylistsTab(),
-        _buildArtistsTab(),
-        _buildAlbumsTab(),
+        _KeepAliveWrapper(child: _buildSongsTab()),
+        _KeepAliveWrapper(child: _buildPlaylistsTab()),
+        _KeepAliveWrapper(child: _buildArtistsTab()),
+        _KeepAliveWrapper(child: _buildAlbumsTab()),
       ],
     );
   }
@@ -87,7 +87,78 @@ extension _TabsUI on _MainScreenState {
     );
     mostPlayed = mostPlayed.where((t) => (_playCounts[t.id] ?? 0) > 0).toList();
 
-    return ListView(
+    final children = [
+      ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        leading: Container(
+          width: 56,
+          height: 56,
+          decoration: BoxDecoration(
+            color: _activeAccentColor.withValues(alpha: 0.2),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(Icons.add, color: _activeAccentColor),
+        ),
+        title: Text(
+          'Create New Playlist',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: _activeAccentColor,
+          ),
+        ),
+        onTap: () => _showCreatePlaylistModal(context),
+      ),
+      _buildPlaylistCard(
+        'Favourites',
+        favorites,
+        const Color(0xFFE91E63),
+        Icons.favorite,
+      ),
+      _buildPlaylistCard(
+        'Recently Added',
+        recentlyAdded,
+        const Color(0xFF2196F3),
+        Icons.new_releases,
+      ),
+      _buildPlaylistCard(
+        'Last Played',
+        lastPlayed,
+        const Color(0xFFFF9800),
+        Icons.history,
+      ),
+      _buildPlaylistCard(
+        'Most Played',
+        mostPlayed,
+        const Color(0xFFF44336),
+        Icons.local_fire_department,
+      ),
+      if (_userPlaylists.isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.only(top: 16, bottom: 8, left: 8),
+          child: Text(
+            'My Playlists',
+            style: TextStyle(
+              color: isAppLight ? const Color(0xFF1A1A1A) : Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ..._userPlaylists.entries.map((entry) {
+        final songs = _allTracks
+            .where((t) => entry.value.contains(t.id))
+            .toList();
+        return _buildPlaylistCard(
+          entry.key,
+          songs,
+          const Color(0xFF9C27B0),
+          Icons.queue_music,
+        );
+      }),
+    ];
+
+    return ListView.builder(
       physics: const BouncingScrollPhysics(),
       padding: EdgeInsets.only(
         left: 16,
@@ -95,81 +166,20 @@ extension _TabsUI on _MainScreenState {
         top: 12,
         bottom: _playingTrack != null ? 84 : 12,
       ),
-      children: [
-        ListTile(
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 8,
-            vertical: 8,
-          ),
-          leading: Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: _activeAccentColor.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(Icons.add, color: _activeAccentColor),
-          ),
-          title: Text(
-            'Create New Playlist',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: _activeAccentColor,
-            ),
-          ),
-          onTap: () => _showCreatePlaylistModal(context),
-        ),
-        _buildPlaylistCard(
-          'Favourites',
-          favorites,
-          const Color(0xFFE91E63),
-          Icons.favorite,
-        ),
-        _buildPlaylistCard(
-          'Recently Added',
-          recentlyAdded,
-          const Color(0xFF2196F3),
-          Icons.new_releases,
-        ),
-        _buildPlaylistCard(
-          'Last Played',
-          lastPlayed,
-          const Color(0xFFFF9800),
-          Icons.history,
-        ),
-        _buildPlaylistCard(
-          'Most Played',
-          mostPlayed,
-          const Color(0xFFF44336),
-          Icons.local_fire_department,
-        ),
-        if (_userPlaylists.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 16, bottom: 8, left: 8),
-            child: Text(
-              'My Playlists',
-              style: TextStyle(
-                color: themeModeNotifier.value == 'light'
-                    ? const Color(0xFF1A1A1A)
-                    : Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ..._userPlaylists.entries.map((entry) {
-          final songs = _allTracks
-              .where((t) => entry.value.contains(t.id))
-              .toList();
-          return _buildPlaylistCard(
-            entry.key,
-            songs,
-            const Color(0xFF9C27B0),
-            Icons.queue_music,
-          );
-        }),
-      ],
+      itemCount: children.length,
+      itemBuilder: (context, index) {
+        final staggerIndex = index < 8 ? index : 0;
+        final keyStr = "playlist_$index";
+        final shouldAnimate = !_animatedPlaylistIds.contains(keyStr);
+        if (shouldAnimate) {
+          _animatedPlaylistIds.add(keyStr);
+        }
+        return _FadeInSlideUp(
+          animate: shouldAnimate,
+          delay: Duration(milliseconds: staggerIndex * 35),
+          child: children[index],
+        );
+      },
     );
   }
 
@@ -240,47 +250,50 @@ extension _TabsUI on _MainScreenState {
         final artist = artists[index];
         final songCount = _allTracks.where((t) => t.artist == artist).length;
         final firstTrack = _allTracks.firstWhere((t) => t.artist == artist);
-        return ListTile(
-          contentPadding: const EdgeInsets.symmetric(vertical: 4),
-          onTap: () {
-            setState(() {
-              _selectedArtistDetail = artist;
-              _searchQuery = '';
-              _searchController.clear();
-              final artistSongs = _allTracks
-                  .where((t) => t.artist == artist)
-                  .toList();
-              _detailColorFuture = _getDetailColor(
-                artistSongs.isNotEmpty ? artistSongs.first : null,
-              );
-            });
-          },
-          leading: _buildTrackArtwork(firstTrack, size: 44, radius: 22),
-          title: Text(
-            artist,
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 15,
-              color: themeModeNotifier.value == 'light'
-                  ? const Color(0xFF1A1A1A)
-                  : Colors.white,
+        final staggerIndex = index < 8 ? index : 0;
+        final shouldAnimate = !_animatedArtistIds.contains(artist);
+        if (shouldAnimate) {
+          _animatedArtistIds.add(artist);
+        }
+        return _FadeInSlideUp(
+          animate: shouldAnimate,
+          delay: Duration(milliseconds: staggerIndex * 35),
+          child: ListTile(
+            contentPadding: const EdgeInsets.symmetric(vertical: 4),
+            onTap: () {
+              setState(() {
+                _selectedArtistDetail = artist;
+                _searchQuery = '';
+                _searchController.clear();
+                final artistSongs = _allTracks
+                    .where((t) => t.artist == artist)
+                    .toList();
+                _detailColorFuture = _getDetailColor(
+                  artistSongs.isNotEmpty ? artistSongs.first : null,
+                );
+              });
+            },
+            leading: _buildTrackArtwork(firstTrack, size: 44, radius: 22),
+            title: Text(
+              artist,
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 15,
+                color: isAppLight ? const Color(0xFF1A1A1A) : Colors.white,
+              ),
             ),
-          ),
-          subtitle: Text(
-            '$songCount songs',
-            style: TextStyle(
-              color: themeModeNotifier.value == 'light'
-                  ? Colors.black45
-                  : Colors.white38,
-              fontSize: 12,
+            subtitle: Text(
+              '$songCount songs',
+              style: TextStyle(
+                color: isAppLight ? Colors.black45 : Colors.white38,
+                fontSize: 12,
+              ),
             ),
-          ),
-          trailing: Icon(
-            Icons.arrow_forward_ios,
-            color: themeModeNotifier.value == 'light'
-                ? Colors.black26
-                : Colors.white24,
-            size: 14,
+            trailing: Icon(
+              Icons.arrow_forward_ios,
+              color: isAppLight ? Colors.black26 : Colors.white24,
+              size: 14,
+            ),
           ),
         );
       },
@@ -354,47 +367,50 @@ extension _TabsUI on _MainScreenState {
         final album = albums[index];
         final songCount = _allTracks.where((t) => t.album == album).length;
         final firstTrack = _allTracks.firstWhere((t) => t.album == album);
-        return ListTile(
-          contentPadding: const EdgeInsets.symmetric(vertical: 4),
-          onTap: () {
-            setState(() {
-              _selectedAlbumDetail = album;
-              _searchQuery = '';
-              _searchController.clear();
-              final albumSongs = _allTracks
-                  .where((t) => t.album == album)
-                  .toList();
-              _detailColorFuture = _getDetailColor(
-                albumSongs.isNotEmpty ? albumSongs.first : null,
-              );
-            });
-          },
-          leading: _buildTrackArtwork(firstTrack, size: 44, radius: 6),
-          title: Text(
-            album,
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 15,
-              color: themeModeNotifier.value == 'light'
-                  ? const Color(0xFF1A1A1A)
-                  : Colors.white,
+        final staggerIndex = index < 8 ? index : 0;
+        final shouldAnimate = !_animatedAlbumIds.contains(album);
+        if (shouldAnimate) {
+          _animatedAlbumIds.add(album);
+        }
+        return _FadeInSlideUp(
+          animate: shouldAnimate,
+          delay: Duration(milliseconds: staggerIndex * 35),
+          child: ListTile(
+            contentPadding: const EdgeInsets.symmetric(vertical: 4),
+            onTap: () {
+              setState(() {
+                _selectedAlbumDetail = album;
+                _searchQuery = '';
+                _searchController.clear();
+                final albumSongs = _allTracks
+                    .where((t) => t.album == album)
+                    .toList();
+                _detailColorFuture = _getDetailColor(
+                  albumSongs.isNotEmpty ? albumSongs.first : null,
+                );
+              });
+            },
+            leading: _buildTrackArtwork(firstTrack, size: 44, radius: 6),
+            title: Text(
+              album,
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 15,
+                color: isAppLight ? const Color(0xFF1A1A1A) : Colors.white,
+              ),
             ),
-          ),
-          subtitle: Text(
-            '$songCount songs',
-            style: TextStyle(
-              color: themeModeNotifier.value == 'light'
-                  ? Colors.black45
-                  : Colors.white38,
-              fontSize: 12,
+            subtitle: Text(
+              '$songCount songs',
+              style: TextStyle(
+                color: isAppLight ? Colors.black45 : Colors.white38,
+                fontSize: 12,
+              ),
             ),
-          ),
-          trailing: Icon(
-            Icons.arrow_forward_ios,
-            color: themeModeNotifier.value == 'light'
-                ? Colors.black26
-                : Colors.white24,
-            size: 14,
+            trailing: Icon(
+              Icons.arrow_forward_ios,
+              color: isAppLight ? Colors.black26 : Colors.white24,
+              size: 14,
+            ),
           ),
         );
       },
@@ -435,90 +451,101 @@ extension _TabsUI on _MainScreenState {
         final isSelected =
             _playingTrack != null && track.id == _playingTrack!.id;
 
-        return Container(
-          key: ValueKey("list_item_${track.id}"),
-          margin: const EdgeInsets.only(bottom: 4),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? Colors.white.withValues(alpha: 0.03)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: ListTile(
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 8,
-              vertical: 2,
+        final staggerIndex = trackIndex < 8 ? trackIndex : 0;
+        final isDetail = header != null;
+        final shouldAnimate = isDetail
+            ? !_animatedDetailTrackIds.contains(track.id)
+            : !_animatedTrackIds.contains(track.id);
+        if (shouldAnimate) {
+          if (isDetail) {
+            _animatedDetailTrackIds.add(track.id);
+          } else {
+            _animatedTrackIds.add(track.id);
+          }
+        }
+
+        return _FadeInSlideUp(
+          animate: shouldAnimate,
+          delay: Duration(milliseconds: staggerIndex * 35),
+          child: Container(
+            key: ValueKey("list_item_${track.id}"),
+            margin: const EdgeInsets.only(bottom: 4),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? Colors.white.withValues(alpha: 0.03)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
             ),
-            onTap: () {
-              _updatePlayingFrom();
-              _playTrack(trackIndex, sourceList: list);
-            },
-            leading: _buildTrackArtwork(track, size: 44, radius: 6),
-            title: Text(
-              track.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 14,
-                color: isSelected
-                    ? _activeAccentColor
-                    : (themeModeNotifier.value == 'light'
-                          ? const Color(0xFF1A1A1A)
-                          : Colors.white),
+            child: ListTile(
+              contentPadding: const EdgeInsets.only(
+                left: 8,
+                right: 0,
+                top: 4,
+                bottom: 4,
               ),
-            ),
-            subtitle: Text(
-              isMostPlayed
-                  ? '${_playCounts[track.id] ?? 0} plays • ${track.artist}'
-                  : track.artist,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: themeModeNotifier.value == 'light'
-                    ? Colors.black45
-                    : Colors.white38,
-                fontSize: 12,
+              onTap: () {
+                _updatePlayingFrom();
+                _playTrack(trackIndex, sourceList: list);
+              },
+              leading: _buildTrackArtwork(track, size: 44, radius: 6),
+              title: Text(
+                track.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                  color: isSelected
+                      ? _activeAccentColor
+                      : (isAppLight ? const Color(0xFF1A1A1A) : Colors.white),
+                ),
               ),
-            ),
-            trailing: Transform.translate(
-              offset: const Offset(8, 0),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (isSelected)
-                    MiniMusicVisualizer(
-                      color: _activeAccentColor,
-                      width: 4,
-                      height: 14,
-                      radius: 2,
-                      animate: _isPlaying,
-                    )
-                  else
-                    Text(
-                      _formatDuration(Duration(milliseconds: track.duration)),
-                      style: TextStyle(
-                        color: themeModeNotifier.value == 'light'
-                            ? Colors.black45
-                            : Colors.white38,
-                        fontSize: 12,
-                        fontFeatures: const [FontFeature.tabularFigures()],
+              subtitle: Text(
+                isMostPlayed
+                    ? '${_playCounts[track.id] ?? 0} plays • ${track.artist}'
+                    : track.artist,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: isAppLight ? Colors.black45 : Colors.white38,
+                  fontSize: 12,
+                ),
+              ),
+              trailing: Transform.translate(
+                offset: const Offset(12, 0),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (isSelected)
+                      MiniMusicVisualizer(
+                        color: _activeAccentColor,
+                        width: 4,
+                        height: 14,
+                        radius: 2,
+                        animate: _isPlaying,
+                      )
+                    else
+                      Text(
+                        _formatDuration(Duration(milliseconds: track.duration)),
+                        style: TextStyle(
+                          color: isAppLight ? Colors.black45 : Colors.white38,
+                          fontSize: 12,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
                       ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: Icon(
+                        Icons.more_vert,
+                        color: isAppLight ? Colors.black45 : Colors.white54,
+                        size: 20,
+                      ),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      onPressed: () => _showTrackOptions(context, track),
                     ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    icon: Icon(
-                      Icons.more_vert,
-                      color: themeModeNotifier.value == 'light'
-                          ? Colors.black45
-                          : Colors.white54,
-                      size: 20,
-                    ),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    onPressed: () => _showTrackOptions(context, track),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -528,9 +555,9 @@ extension _TabsUI on _MainScreenState {
   }
 
   Widget _buildSearchBar() {
-    final isLight = themeModeNotifier.value == 'light';
+    final isLight = isAppLight;
     final searchBgColor = isLight
-        ? Colors.black.withOpacity(0.05)
+        ? Colors.black.withValues(alpha: 0.05)
         : const Color(0xFF161616);
     final textColor = isLight ? const Color(0xFF1A1A1A) : Colors.white;
     final hintColor = isLight
@@ -601,7 +628,7 @@ extension _TabsUI on _MainScreenState {
   }
 
   Widget _buildFilterCapsules() {
-    final isLight = themeModeNotifier.value == 'light';
+    final isLight = isAppLight;
     final filters = ['Songs', 'Playlists', 'Artists', 'Albums'];
     return Padding(
       padding: const EdgeInsets.only(left: 24, right: 24, top: 16, bottom: 8),
@@ -615,11 +642,7 @@ extension _TabsUI on _MainScreenState {
             return Expanded(
               child: GestureDetector(
                 onTap: () {
-                  _pageController.animateToPage(
-                    index,
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeInOut,
-                  );
+                  _pageController.jumpToPage(index);
                 },
                 child: Container(
                   margin: EdgeInsets.only(
@@ -630,7 +653,7 @@ extension _TabsUI on _MainScreenState {
                     color: isSelected
                         ? (isLight ? const Color(0xFF1A1A1A) : Colors.white)
                         : (isLight
-                              ? Colors.black.withOpacity(0.05)
+                              ? Colors.black.withValues(alpha: 0.05)
                               : const Color(0xFF161616)),
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -652,6 +675,93 @@ extension _TabsUI on _MainScreenState {
           }).toList(),
         ),
       ),
+    );
+  }
+}
+
+class _KeepAliveWrapper extends StatefulWidget {
+  final Widget child;
+  const _KeepAliveWrapper({required this.child});
+
+  @override
+  State<_KeepAliveWrapper> createState() => _KeepAliveWrapperState();
+}
+
+class _KeepAliveWrapperState extends State<_KeepAliveWrapper>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
+  }
+
+  @override
+  bool get wantKeepAlive => true;
+}
+
+class _FadeInSlideUp extends StatefulWidget {
+  final Widget child;
+  final Duration delay;
+  final bool animate;
+
+  const _FadeInSlideUp({
+    required this.child,
+    required this.delay,
+    this.animate = true,
+  });
+
+  @override
+  State<_FadeInSlideUp> createState() => _FadeInSlideUpState();
+}
+
+class _FadeInSlideUpState extends State<_FadeInSlideUp> {
+  bool _isMounted = false;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!widget.animate || widget.delay == Duration.zero) {
+      _isMounted = true;
+    } else {
+      _timer = Timer(widget.delay, () {
+        if (mounted) {
+          setState(() {
+            _isMounted = true;
+          });
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!widget.animate) {
+      return widget.child;
+    }
+    if (!_isMounted) {
+      return Opacity(opacity: 0.0, child: widget.child);
+    }
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0.0, end: 1.0),
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, child) {
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, (1.0 - value) * 16),
+            child: child,
+          ),
+        );
+      },
+      child: widget.child,
     );
   }
 }
