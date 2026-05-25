@@ -54,6 +54,14 @@ final ValueNotifier<double> customThemeBgScaleNotifier = ValueNotifier<double>(
 final ValueNotifier<String> customThemeStyleNotifier = ValueNotifier<String>(
   'dark',
 );
+final ValueNotifier<double> customThemeBgOffsetXNotifier =
+    ValueNotifier<double>(0.0);
+final ValueNotifier<double> customThemeBgOffsetYNotifier =
+    ValueNotifier<double>(0.0);
+final ValueNotifier<double> playerCustomBgOffsetXNotifier =
+    ValueNotifier<double>(0.0);
+final ValueNotifier<double> playerCustomBgOffsetYNotifier =
+    ValueNotifier<double>(0.0);
 void showTunzaToast(String msg, {bool isLong = false}) {
   Fluttertoast.showToast(
     msg: msg,
@@ -120,7 +128,7 @@ Color getAppCardColor({required String themeMode, required Color appBgColor}) {
 }
 
 class MyAudioHandler extends BaseAudioHandler {
-  final player = AudioPlayer();
+  final player = AudioPlayer(handleInterruptions: false);
 
   MyAudioHandler() {
     player.playbackEventStream.map(_transformEvent).pipe(playbackState);
@@ -262,12 +270,39 @@ class MyAudioHandler extends BaseAudioHandler {
   }
 }
 
+Future<void> configureAudioSession(bool playTogether) async {
+  final session = await AudioSession.instance;
+  if (playTogether) {
+    await session.configure(
+      const AudioSessionConfiguration(
+        avAudioSessionCategory: AVAudioSessionCategory.playback,
+        avAudioSessionCategoryOptions:
+            AVAudioSessionCategoryOptions.mixWithOthers,
+        avAudioSessionMode: AVAudioSessionMode.defaultMode,
+        avAudioSessionRouteSharingPolicy:
+            AVAudioSessionRouteSharingPolicy.defaultPolicy,
+        avAudioSessionSetActiveOptions: AVAudioSessionSetActiveOptions.none,
+        androidAudioAttributes: AndroidAudioAttributes(
+          contentType: AndroidAudioContentType.music,
+          usage: AndroidAudioUsage.media,
+        ),
+        androidAudioFocusGainType:
+            AndroidAudioFocusGainType.gainTransientMayDuck,
+        androidWillPauseWhenDucked: false,
+      ),
+    );
+  } else {
+    await session.configure(const AudioSessionConfiguration.music());
+  }
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
-  final session = await AudioSession.instance;
-  await session.configure(const AudioSessionConfiguration.music());
+  final prefs = await SharedPreferences.getInstance();
+  final playTogether = prefs.getBool('playTogether') ?? false;
+  await configureAudioSession(playTogether);
 
   try {
     audioHandler = await AudioService.init(
@@ -442,7 +477,7 @@ class MainScreen extends StatefulWidget {
   State<MainScreen> createState() => _MainScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> {
+class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   static _MainScreenState? mainScreenState;
   AudioPlayer get player => _audioPlayer;
   final AudioPlayer _audioPlayer = (audioHandler as MyAudioHandler).player;
@@ -459,6 +494,7 @@ class _MainScreenState extends State<MainScreen> {
   int _crossfadeDuration = 200;
   bool _pauseOnDisconnect = true;
   bool _autoPlayAfterCall = true;
+  bool _playTogether = false;
   int _playCountThreshold = 10;
   String _activeFont = 'Plus Jakarta Sans';
   double _fontScale = 1.0;
@@ -510,12 +546,14 @@ class _MainScreenState extends State<MainScreen> {
   Map<String, String> _playlistCovers = {};
   Map<String, Map<String, String>> _metadataOverrides = {};
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
+  Timer? _searchDebouncer;
   final ImagePicker _imagePicker = ImagePicker();
 
   bool _isPlaying = false;
   bool _isShuffle = false;
   int _repeatMode = 1;
-  double _volume = 0.8;
+  final double _volume = 1.0;
   ProcessingState _processingState = ProcessingState.idle;
   double? _dragValue;
   Color? _dominantColor;
@@ -560,9 +598,7 @@ class _MainScreenState extends State<MainScreen> {
       if (hsl.saturation < 0.12) {
         return const Color(0xFFB3B3B3);
       }
-      return hsl
-          .withLightness(0.6)
-          .toColor(); // Boost brightness for readable pastel glow!
+      return hsl.withLightness(0.6).toColor();
     }
     return color;
   }
@@ -598,10 +634,10 @@ class _MainScreenState extends State<MainScreen> {
 
   Future<Color?>? _detailColorFuture;
   int _fadeSessionId = 0;
-  double _playerDragOffset = 0.0;
-  bool _isDraggingPlayer = false;
-  double _detailDragOffset = 0.0;
-  bool _isDraggingDetail = false;
+  final ValueNotifier<double> _playerDragOffsetNotifier = ValueNotifier(0.0);
+  final ValueNotifier<bool> _isDraggingPlayerNotifier = ValueNotifier(false);
+  final ValueNotifier<double> _detailDragOffsetNotifier = ValueNotifier(0.0);
+  final ValueNotifier<bool> _isDraggingDetailNotifier = ValueNotifier(false);
 
   Widget? _lastDetailView;
   String? _cachedDetailKey;
@@ -616,6 +652,7 @@ class _MainScreenState extends State<MainScreen> {
       _crossfadeDuration = prefs.getInt('crossfadeDuration') ?? 200;
       _pauseOnDisconnect = prefs.getBool('pauseOnDisconnect') ?? true;
       _autoPlayAfterCall = prefs.getBool('autoPlayAfterCall') ?? true;
+      _playTogether = prefs.getBool('playTogether') ?? false;
       _playCountThreshold = prefs.getInt('playCountThreshold') ?? 10;
       _activeFont = prefs.getString('activeFont') ?? 'Plus Jakarta Sans';
       _fontScale = prefs.getDouble('fontScale') ?? 1.0;
@@ -634,6 +671,11 @@ class _MainScreenState extends State<MainScreen> {
       _customThemeBgBlur = prefs.getDouble('customThemeBgBlur') ?? 25.0;
       _customThemeBgDim = prefs.getDouble('customThemeBgDim') ?? 0.65;
       _customThemeBgScale = prefs.getDouble('customThemeBgScale') ?? 1.0;
+      double customOffsetX = prefs.getDouble('customThemeBgOffsetX') ?? 0.0;
+      double customOffsetY = prefs.getDouble('customThemeBgOffsetY') ?? 0.0;
+      customThemeBgOffsetXNotifier.value = customOffsetX;
+      customThemeBgOffsetYNotifier.value = customOffsetY;
+
       _customThemeStyle = prefs.getString('customThemeStyle') ?? 'dark';
       themeModeNotifier.value = _themeMode;
       customThemeBgNotifier.value = _customThemeBg;
@@ -653,6 +695,11 @@ class _MainScreenState extends State<MainScreen> {
       _playerCustomBgDimNotifier.value = _playerCustomBgDim;
       _playerCustomBgScale = prefs.getDouble('playerCustomBgScale') ?? 1.0;
       _playerCustomBgScaleNotifier.value = _playerCustomBgScale;
+
+      double playerOffsetX = prefs.getDouble('playerCustomBgOffsetX') ?? 0.0;
+      double playerOffsetY = prefs.getDouble('playerCustomBgOffsetY') ?? 0.0;
+      playerCustomBgOffsetXNotifier.value = playerOffsetX;
+      playerCustomBgOffsetYNotifier.value = playerOffsetY;
 
       _audioPlayer.setSkipSilenceEnabled(_skipSilence);
 
@@ -736,6 +783,7 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     mainScreenState = this;
     _pageController = PageController();
     _loadSettings();
@@ -762,7 +810,7 @@ class _MainScreenState extends State<MainScreen> {
               break;
             case AudioInterruptionType.pause:
             case AudioInterruptionType.unknown:
-              if (_audioPlayer.playing) {
+              if (_audioPlayer.playing && !_playTogether) {
                 playBeforeInterruption = true;
                 _pauseWithFade();
               }
@@ -1555,9 +1603,38 @@ class _MainScreenState extends State<MainScreen> {
       } else {
         final List<AudioSource> children = [];
 
+        int prevIndex = -1;
+        int nextIndex = -1;
+
+        if (_isShuffle && _shuffledIndices.isNotEmpty) {
+          int currentShuffledPos = _shuffledIndices.indexOf(index);
+          if (currentShuffledPos > 0) {
+            prevIndex = _shuffledIndices[currentShuffledPos - 1];
+          } else if (_repeatMode == 1) {
+            prevIndex = _shuffledIndices.last;
+          }
+          if (currentShuffledPos != -1 &&
+              currentShuffledPos < _shuffledIndices.length - 1) {
+            nextIndex = _shuffledIndices[currentShuffledPos + 1];
+          } else if (_repeatMode == 1 && _shuffledIndices.isNotEmpty) {
+            nextIndex = _shuffledIndices.first;
+          }
+        } else {
+          if (index > 0) {
+            prevIndex = index - 1;
+          } else if (_repeatMode == 1) {
+            prevIndex = _playbackQueue.length - 1;
+          }
+          if (index < _playbackQueue.length - 1) {
+            nextIndex = index + 1;
+          } else if (_repeatMode == 1) {
+            nextIndex = 0;
+          }
+        }
+
         // Previous track
-        if (index > 0) {
-          final prevTrack = _playbackQueue[index - 1];
+        if (prevIndex != -1) {
+          final prevTrack = _playbackQueue[prevIndex];
           final prevUri = prevTrack.url.startsWith('/')
               ? Uri.file(prevTrack.url)
               : (Uri.tryParse(prevTrack.url) ?? Uri.parse(''));
@@ -1588,8 +1665,8 @@ class _MainScreenState extends State<MainScreen> {
         children.add(currentSource);
 
         // Next track
-        if (index < _playbackQueue.length - 1) {
-          final nextTrack = _playbackQueue[index + 1];
+        if (nextIndex != -1) {
+          final nextTrack = _playbackQueue[nextIndex];
           final nextUri = nextTrack.url.startsWith('/')
               ? Uri.file(nextTrack.url)
               : (Uri.tryParse(nextTrack.url) ?? Uri.parse(''));
@@ -1694,6 +1771,115 @@ class _MainScreenState extends State<MainScreen> {
     }
   }
 
+  Future<void> _refreshAudioSourceWindow() async {
+    if (_playbackQueue.isEmpty || _playingTrack == null) return;
+    if (_playbackQueue.length <= 1) return;
+    if (_audioPlayer.audioSource is! ConcatenatingAudioSource) return;
+
+    _isProgrammaticLoading = true;
+    try {
+      final concatenating =
+          _audioPlayer.audioSource as ConcatenatingAudioSource;
+      final index = _currentIndex;
+
+      int prevIndex = -1;
+      int nextIndex = -1;
+
+      if (_isShuffle && _shuffledIndices.isNotEmpty) {
+        int currentShuffledPos = _shuffledIndices.indexOf(index);
+        if (currentShuffledPos > 0) {
+          prevIndex = _shuffledIndices[currentShuffledPos - 1];
+        } else if (_repeatMode == 1) {
+          prevIndex = _shuffledIndices.last;
+        }
+        if (currentShuffledPos != -1 &&
+            currentShuffledPos < _shuffledIndices.length - 1) {
+          nextIndex = _shuffledIndices[currentShuffledPos + 1];
+        } else if (_repeatMode == 1 && _shuffledIndices.isNotEmpty) {
+          nextIndex = _shuffledIndices.first;
+        }
+      } else {
+        if (index > 0) {
+          prevIndex = index - 1;
+        } else if (_repeatMode == 1) {
+          prevIndex = _playbackQueue.length - 1;
+        }
+        if (index < _playbackQueue.length - 1) {
+          nextIndex = index + 1;
+        } else if (_repeatMode == 1) {
+          nextIndex = 0;
+        }
+      }
+
+      int playerCurrentIndex = _audioPlayer.currentIndex ?? 0;
+      while (playerCurrentIndex > 0) {
+        await concatenating.removeAt(0);
+        playerCurrentIndex--;
+      }
+      while (concatenating.length > 1) {
+        await concatenating.removeAt(1);
+      }
+
+      // Now insert the new adjacent tracks
+      if (prevIndex != -1) {
+        final prevTrack = _playbackQueue[prevIndex];
+        final prevUri = prevTrack.url.startsWith('/')
+            ? Uri.file(prevTrack.url)
+            : (Uri.tryParse(prevTrack.url) ?? Uri.parse(''));
+        final prevCover = await _getCoverUriForTrack(prevTrack);
+        await concatenating.insert(
+          0,
+          AudioSource.uri(
+            prevUri,
+            tag: MediaItem(
+              id: prevTrack.id,
+              album: prevTrack.album.trim().isEmpty
+                  ? 'Unknown Album'
+                  : prevTrack.album,
+              title: prevTrack.title.trim().isEmpty
+                  ? 'Unknown Title'
+                  : prevTrack.title,
+              artist: prevTrack.artist.trim().isEmpty
+                  ? 'Unknown Artist'
+                  : prevTrack.artist,
+              artUri: prevCover,
+              duration: Duration(milliseconds: prevTrack.duration),
+            ),
+          ),
+        );
+      }
+
+      if (nextIndex != -1) {
+        final nextTrack = _playbackQueue[nextIndex];
+        final nextUri = nextTrack.url.startsWith('/')
+            ? Uri.file(nextTrack.url)
+            : (Uri.tryParse(nextTrack.url) ?? Uri.parse(''));
+        final nextCover = await _getCoverUriForTrack(nextTrack);
+        await concatenating.add(
+          AudioSource.uri(
+            nextUri,
+            tag: MediaItem(
+              id: nextTrack.id,
+              album: nextTrack.album.trim().isEmpty
+                  ? 'Unknown Album'
+                  : nextTrack.album,
+              title: nextTrack.title.trim().isEmpty
+                  ? 'Unknown Title'
+                  : nextTrack.title,
+              artist: nextTrack.artist.trim().isEmpty
+                  ? 'Unknown Artist'
+                  : nextTrack.artist,
+              artUri: nextCover,
+              duration: Duration(milliseconds: nextTrack.duration),
+            ),
+          ),
+        );
+      }
+    } finally {
+      _isProgrammaticLoading = false;
+    }
+  }
+
   Future<void> _slideWindowInPlace(int newQueueIndex, int direction) async {
     _isProgrammaticLoading = true;
     try {
@@ -1740,13 +1926,42 @@ class _MainScreenState extends State<MainScreen> {
       if (_audioPlayer.audioSource is ConcatenatingAudioSource) {
         final concatenating =
             _audioPlayer.audioSource as ConcatenatingAudioSource;
+        int prevIndex = -1;
+        int nextIndex = -1;
+
+        if (_isShuffle && _shuffledIndices.isNotEmpty) {
+          int currentShuffledPos = _shuffledIndices.indexOf(newQueueIndex);
+          if (currentShuffledPos > 0) {
+            prevIndex = _shuffledIndices[currentShuffledPos - 1];
+          } else if (_repeatMode == 1) {
+            prevIndex = _shuffledIndices.last;
+          }
+          if (currentShuffledPos != -1 &&
+              currentShuffledPos < _shuffledIndices.length - 1) {
+            nextIndex = _shuffledIndices[currentShuffledPos + 1];
+          } else if (_repeatMode == 1 && _shuffledIndices.isNotEmpty) {
+            nextIndex = _shuffledIndices.first;
+          }
+        } else {
+          if (newQueueIndex > 0) {
+            prevIndex = newQueueIndex - 1;
+          } else if (_repeatMode == 1) {
+            prevIndex = _playbackQueue.length - 1;
+          }
+          if (newQueueIndex < _playbackQueue.length - 1) {
+            nextIndex = newQueueIndex + 1;
+          } else if (_repeatMode == 1) {
+            nextIndex = 0;
+          }
+        }
+
         if (direction > 0) {
           // Slide forward: remove index 0, add new next at end
           if (concatenating.sequence.isNotEmpty) {
             await concatenating.removeAt(0);
           }
-          if (newQueueIndex < _playbackQueue.length - 1) {
-            final nextTrack = _playbackQueue[newQueueIndex + 1];
+          if (nextIndex != -1) {
+            final nextTrack = _playbackQueue[nextIndex];
             final nextUri = nextTrack.url.startsWith('/')
                 ? Uri.file(nextTrack.url)
                 : (Uri.tryParse(nextTrack.url) ?? Uri.parse(''));
@@ -1776,8 +1991,8 @@ class _MainScreenState extends State<MainScreen> {
           if (concatenating.sequence.length > 1) {
             await concatenating.removeAt(concatenating.sequence.length - 1);
           }
-          if (newQueueIndex > 0) {
-            final prevTrack = _playbackQueue[newQueueIndex - 1];
+          if (prevIndex != -1) {
+            final prevTrack = _playbackQueue[prevIndex];
             final prevUri = prevTrack.url.startsWith('/')
                 ? Uri.file(prevTrack.url)
                 : (Uri.tryParse(prevTrack.url) ?? Uri.parse(''));
@@ -1899,6 +2114,10 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Future<void> _loadLyricsForTrack(Track track) async {
+    if (_lyricsScrollController.hasClients) {
+      _lyricsScrollController.jumpTo(0);
+    }
+    _lastActiveLyricsIndex = -1;
     setState(() {
       _isLyricsLoading = true;
       _currentLyricsPlain = null;
@@ -2128,7 +2347,19 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.detached) {
+      if (!_audioPlayer.playing) {
+        _audioPlayer.stop();
+        audioHandler.stop();
+      }
+    }
+    super.didChangeAppLifecycleState(state);
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _batteryCheckTimer?.cancel();
     _searchController.dispose();
     _lyricsScrollController.dispose();
@@ -2152,13 +2383,14 @@ class _MainScreenState extends State<MainScreen> {
         systemNavigationBarIconBrightness: Brightness.light,
       ),
       child: PopScope(
-        canPop: !_isPlayerOpen && !isDetailView && !_showLyrics,
+        canPop: !_isPlayerOpen && !isDetailView,
         onPopInvokedWithResult: (didPop, result) {
           if (didPop) return;
-          if (_showLyrics) {
-            setState(() => _showLyrics = false);
-          } else if (_isPlayerOpen) {
-            setState(() => _isPlayerOpen = false);
+          if (_isPlayerOpen) {
+            setState(() {
+              _isPlayerOpen = false;
+              _showLyrics = false;
+            });
           } else if (isDetailView) {
             setState(() {
               _selectedPlaylistDetail = null;
@@ -2189,10 +2421,13 @@ class _MainScreenState extends State<MainScreen> {
                                   return ValueListenableBuilder<double>(
                                     valueListenable: customThemeBgDimNotifier,
                                     builder: (context, dimVal, child) {
-                                      return ValueListenableBuilder<double>(
-                                        valueListenable:
-                                            customThemeBgScaleNotifier,
-                                        builder: (context, scaleVal, child) {
+                                      return AnimatedBuilder(
+                                        animation: Listenable.merge([
+                                          customThemeBgScaleNotifier,
+                                          customThemeBgOffsetXNotifier,
+                                          customThemeBgOffsetYNotifier,
+                                        ]),
+                                        builder: (context, child) {
                                           return Positioned.fill(
                                             child: Stack(
                                               children: [
@@ -2205,7 +2440,15 @@ class _MainScreenState extends State<MainScreen> {
                                                             sigmaY: blurVal,
                                                           ),
                                                       child: Transform.scale(
-                                                        scale: scaleVal,
+                                                        scale:
+                                                            customThemeBgScaleNotifier
+                                                                .value,
+                                                        alignment: Alignment(
+                                                          customThemeBgOffsetXNotifier
+                                                              .value,
+                                                          customThemeBgOffsetYNotifier
+                                                              .value,
+                                                        ),
                                                         child: Image.file(
                                                           File(customPath),
                                                           fit: BoxFit.cover,
@@ -2260,32 +2503,62 @@ class _MainScreenState extends State<MainScreen> {
               ),
 
               Positioned.fill(
-                child: AnimatedSlide(
-                  duration: _isDraggingDetail
-                      ? Duration.zero
-                      : const Duration(milliseconds: 400),
-                  curve: Curves.easeOutCubic,
-                  offset: isDetailView
-                      ? Offset(0, _detailDragOffset)
-                      : const Offset(0, 1),
+                child: ListenableBuilder(
+                  listenable: Listenable.merge([
+                    _detailDragOffsetNotifier,
+                    _isDraggingDetailNotifier,
+                  ]),
                   child: _getActiveDetailView(),
+                  builder: (context, child) {
+                    final isDragging = _isDraggingDetailNotifier.value;
+                    final dragOffset = _detailDragOffsetNotifier.value;
+
+                    if (!isDetailView && dragOffset != 0.0) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (mounted) _detailDragOffsetNotifier.value = 0.0;
+                      });
+                    }
+
+                    return AnimatedSlide(
+                      duration: isDragging
+                          ? Duration.zero
+                          : const Duration(milliseconds: 380),
+                      curve: Curves.easeOutQuint,
+                      offset: isDetailView
+                          ? Offset(0, dragOffset)
+                          : const Offset(0, 1),
+                      child: child!,
+                    );
+                  },
                 ),
               ),
 
               if (_playingTrack != null) _buildMiniPlayer(_playingTrack!),
 
               Positioned.fill(
-                child: AnimatedSlide(
-                  duration: _isDraggingPlayer
-                      ? Duration.zero
-                      : const Duration(milliseconds: 400),
-                  curve: Curves.easeOutQuint,
-                  offset: _isPlayerOpen
-                      ? Offset(0, _playerDragOffset)
-                      : const Offset(0, 1),
+                child: ListenableBuilder(
+                  listenable: Listenable.merge([
+                    _playerDragOffsetNotifier,
+                    _isDraggingPlayerNotifier,
+                  ]),
                   child: _playingTrack != null
                       ? _buildFullScreenPlayer(_playingTrack!)
                       : const SizedBox.shrink(),
+                  builder: (context, child) {
+                    final isDragging = _isDraggingPlayerNotifier.value;
+                    final dragOffset = _playerDragOffsetNotifier.value;
+
+                    return AnimatedSlide(
+                      duration: isDragging
+                          ? Duration.zero
+                          : const Duration(milliseconds: 380),
+                      curve: Curves.easeOutQuint,
+                      offset: _isPlayerOpen
+                          ? Offset(0, dragOffset)
+                          : const Offset(0, 1),
+                      child: child!,
+                    );
+                  },
                 ),
               ),
             ],

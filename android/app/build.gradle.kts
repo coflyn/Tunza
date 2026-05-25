@@ -33,6 +33,15 @@ android {
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
+
+    applicationVariants.all {
+        outputs.all {
+            val outputImpl = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
+            val abi = outputImpl.filters.find { it.filterType == com.android.build.VariantOutput.FilterType.ABI.name }?.identifier
+            val abiSuffix = if (abi != null) "-$abi" else ""
+            outputImpl.outputFileName = "tunza$abiSuffix.apk"
+        }
+    }
 }
 
 kotlin {

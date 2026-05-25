@@ -32,9 +32,31 @@ extension _TabsUI on _MainScreenState {
   }
 
   Widget _buildSongsTab() {
-    List<Track> songs = List<Track>.from(_allTracks);
+    List<Track> allSorted = List<Track>.from(_allTracks);
+
+    if (_sortBy == 'title') {
+      allSorted.sort(
+        (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()),
+      );
+    } else if (_sortBy == 'artist') {
+      allSorted.sort(
+        (a, b) => a.artist.toLowerCase().compareTo(b.artist.toLowerCase()),
+      );
+    } else if (_sortBy == 'album') {
+      allSorted.sort(
+        (a, b) => a.album.toLowerCase().compareTo(b.album.toLowerCase()),
+      );
+    } else if (_sortBy == 'date_oldest') {
+      allSorted = allSorted.reversed.toList();
+    } else if (_sortBy == 'duration_longest') {
+      allSorted.sort((a, b) => b.duration.compareTo(a.duration));
+    } else if (_sortBy == 'duration_shortest') {
+      allSorted.sort((a, b) => a.duration.compareTo(b.duration));
+    }
+
+    List<Track> displayed = allSorted;
     if (_searchQuery.isNotEmpty) {
-      songs = songs
+      displayed = allSorted
           .where(
             (t) =>
                 t.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
@@ -44,27 +66,10 @@ extension _TabsUI on _MainScreenState {
           .toList();
     }
 
-    if (_sortBy == 'title') {
-      songs.sort(
-        (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()),
-      );
-    } else if (_sortBy == 'artist') {
-      songs.sort(
-        (a, b) => a.artist.toLowerCase().compareTo(b.artist.toLowerCase()),
-      );
-    } else if (_sortBy == 'album') {
-      songs.sort(
-        (a, b) => a.album.toLowerCase().compareTo(b.album.toLowerCase()),
-      );
-    } else if (_sortBy == 'date_oldest') {
-      songs = songs.reversed.toList();
-    } else if (_sortBy == 'duration_longest') {
-      songs.sort((a, b) => b.duration.compareTo(a.duration));
-    } else if (_sortBy == 'duration_shortest') {
-      songs.sort((a, b) => a.duration.compareTo(b.duration));
-    }
-
-    return _buildSongList(songs);
+    return _buildSongList(
+      displayed,
+      fullQueueList: _searchQuery.isNotEmpty ? allSorted : null,
+    );
   }
 
   Widget _buildPlaylistsTab() {
@@ -422,6 +427,7 @@ extension _TabsUI on _MainScreenState {
     Widget? header,
     bool isMostPlayed = false,
     ScrollController? controller,
+    List<Track>? fullQueueList,
   }) {
     if (list.isEmpty && header == null) {
       return Center(
@@ -484,8 +490,18 @@ extension _TabsUI on _MainScreenState {
                 bottom: 4,
               ),
               onTap: () {
+                _searchFocusNode.unfocus();
                 _updatePlayingFrom();
-                _playTrack(trackIndex, sourceList: list);
+                if (fullQueueList != null) {
+                  final realIndex = fullQueueList.indexOf(track);
+                  if (realIndex != -1) {
+                    _playTrack(realIndex, sourceList: fullQueueList);
+                  } else {
+                    _playTrack(trackIndex, sourceList: list);
+                  }
+                } else {
+                  _playTrack(trackIndex, sourceList: list);
+                }
               },
               leading: _buildTrackArtwork(track, size: 44, radius: 6),
               title: Text(
@@ -577,11 +593,24 @@ extension _TabsUI on _MainScreenState {
                 borderRadius: BorderRadius.circular(10),
               ),
               child: TextField(
+                focusNode: _searchFocusNode,
                 controller: _searchController,
                 textAlignVertical: TextAlignVertical.center,
+                textInputAction: TextInputAction.search,
+                onSubmitted: (_) {
+                  _searchFocusNode.unfocus();
+                },
                 onChanged: (val) {
-                  _searchQuery = val;
-                  _filterSongs();
+                  if (_searchDebouncer?.isActive ?? false) {
+                    _searchDebouncer!.cancel();
+                  }
+                  _searchDebouncer = Timer(
+                    const Duration(milliseconds: 300),
+                    () {
+                      _searchQuery = val.trim();
+                      _filterSongs();
+                    },
+                  );
                 },
                 style: TextStyle(fontSize: 14, color: textColor),
                 decoration: InputDecoration(
@@ -717,11 +746,13 @@ class _FadeInSlideUp extends StatefulWidget {
 class _FadeInSlideUpState extends State<_FadeInSlideUp> {
   bool _isMounted = false;
   Timer? _timer;
+  late bool _animate;
 
   @override
   void initState() {
     super.initState();
-    if (!widget.animate || widget.delay == Duration.zero) {
+    _animate = widget.animate;
+    if (!_animate || widget.delay == Duration.zero) {
       _isMounted = true;
     } else {
       _timer = Timer(widget.delay, () {
@@ -742,15 +773,11 @@ class _FadeInSlideUpState extends State<_FadeInSlideUp> {
 
   @override
   Widget build(BuildContext context) {
-    if (!widget.animate) {
-      return widget.child;
-    }
-    if (!_isMounted) {
-      return Opacity(opacity: 0.0, child: widget.child);
-    }
+    final double targetValue = (_isMounted || !_animate) ? 1.0 : 0.0;
+
     return TweenAnimationBuilder<double>(
-      tween: Tween<double>(begin: 0.0, end: 1.0),
-      duration: const Duration(milliseconds: 350),
+      tween: Tween<double>(begin: _animate ? 0.0 : 1.0, end: targetValue),
+      duration: _animate ? const Duration(milliseconds: 350) : Duration.zero,
       curve: Curves.easeOutCubic,
       builder: (context, value, child) {
         return Opacity(

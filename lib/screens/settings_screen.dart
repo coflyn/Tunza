@@ -127,6 +127,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   int _crossfadeDuration = 200;
   bool _pauseOnDisconnect = true;
   bool _autoPlayAfterCall = true;
+  bool _playTogether = false;
   int _playCountThreshold = 10;
   String _activeFont = 'Plus Jakarta Sans';
   double _fontScale = 1.0;
@@ -141,12 +142,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
   double _customThemeBgBlur = 25.0;
   double _customThemeBgDim = 0.65;
   double _customThemeBgScale = 1.0;
+  double _customThemeBgOffsetX = 0.0;
+  double _customThemeBgOffsetY = 0.0;
   String _customThemeStyle = 'dark';
   String _playerBackgroundStyle = 'gradient';
   String? _playerCustomBgPath;
   double _playerCustomBgBlur = 0.0;
   double _playerCustomBgDim = 0.4;
   double _playerCustomBgScale = 1.0;
+  double _playerCustomBgOffsetX = 0.0;
+  double _playerCustomBgOffsetY = 0.0;
   Future<List<SongModel>>? _songsFuture;
 
   Color get _activeAccentColor {
@@ -334,6 +339,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _crossfadeDuration = prefs.getInt('crossfadeDuration') ?? 200;
       _pauseOnDisconnect = prefs.getBool('pauseOnDisconnect') ?? true;
       _autoPlayAfterCall = prefs.getBool('autoPlayAfterCall') ?? true;
+      _playTogether = prefs.getBool('playTogether') ?? false;
       _playCountThreshold = prefs.getInt('playCountThreshold') ?? 10;
       _activeFont = prefs.getString('activeFont') ?? 'Plus Jakarta Sans';
       _fontScale = prefs.getDouble('fontScale') ?? 1.0;
@@ -348,6 +354,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _customThemeBgBlur = prefs.getDouble('customThemeBgBlur') ?? 25.0;
       _customThemeBgDim = prefs.getDouble('customThemeBgDim') ?? 0.65;
       _customThemeBgScale = prefs.getDouble('customThemeBgScale') ?? 1.0;
+      _customThemeBgOffsetX = prefs.getDouble('customThemeBgOffsetX') ?? 0.0;
+      _customThemeBgOffsetY = prefs.getDouble('customThemeBgOffsetY') ?? 0.0;
       _customThemeStyle = prefs.getString('customThemeStyle') ?? 'dark';
       _playerBackgroundStyle =
           prefs.getString('playerBackgroundStyle') ?? 'gradient';
@@ -355,6 +363,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _playerCustomBgBlur = prefs.getDouble('playerCustomBgBlur') ?? 0.0;
       _playerCustomBgDim = prefs.getDouble('playerCustomBgDim') ?? 0.4;
       _playerCustomBgScale = prefs.getDouble('playerCustomBgScale') ?? 1.0;
+      _playerCustomBgOffsetX = prefs.getDouble('playerCustomBgOffsetX') ?? 0.0;
+      _playerCustomBgOffsetY = prefs.getDouble('playerCustomBgOffsetY') ?? 0.0;
     });
   }
 
@@ -368,6 +378,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(key, value);
     widget.onRescanLibrary(); // Trigger reload
+  }
+
+  Future<void> _saveDouble(String key, double value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(key, value);
   }
 
   @override
@@ -637,6 +652,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                             ),
                                             child: Transform.scale(
                                               scale: _customThemeBgScale,
+                                              alignment: Alignment(
+                                                _customThemeBgOffsetX,
+                                                _customThemeBgOffsetY,
+                                              ),
                                               child: Image.file(
                                                 File(_customThemeBgPath!),
                                                 fit: BoxFit.cover,
@@ -713,7 +732,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                               ),
                                             ),
                                             const SizedBox(height: 16),
-                                            // Mock Song Tile list items!
                                             for (int i = 0; i < 3; i++) ...[
                                               Row(
                                                 children: [
@@ -920,7 +938,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         Slider(
                           value: _customThemeBgScale,
                           min: 1.0,
-                          max: 2.0,
+                          max: 3.0,
                           activeColor: _activeAccentColor,
                           inactiveColor: isLight
                               ? Colors.black.withOpacity(0.08)
@@ -930,6 +948,90 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               _customThemeBgScale = val;
                             });
                             widget.onSetCustomThemeBgScale(val);
+                          },
+                        ),
+                        // Pan X
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Pan Horizontal (X)',
+                              style: TextStyle(
+                                color: isLight
+                                    ? Colors.black54
+                                    : Colors.white70,
+                                fontSize: 13,
+                                fontFamily: _activeFont,
+                              ),
+                            ),
+                            Text(
+                              '${(_customThemeBgOffsetX * 100).toInt()}%',
+                              style: TextStyle(
+                                color: isLight
+                                    ? Colors.black38
+                                    : Colors.white38,
+                                fontSize: 13,
+                                fontFamily: _activeFont,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Slider(
+                          value: _customThemeBgOffsetX,
+                          min: -1.0,
+                          max: 1.0,
+                          activeColor: _activeAccentColor,
+                          inactiveColor: isLight
+                              ? Colors.black.withOpacity(0.08)
+                              : Colors.white10,
+                          onChanged: (val) {
+                            setState(() {
+                              _customThemeBgOffsetX = val;
+                            });
+                            _saveDouble('customThemeBgOffsetX', val);
+                            customThemeBgOffsetXNotifier.value = val;
+                          },
+                        ),
+                        // Pan Y
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Pan Vertical (Y)',
+                              style: TextStyle(
+                                color: isLight
+                                    ? Colors.black54
+                                    : Colors.white70,
+                                fontSize: 13,
+                                fontFamily: _activeFont,
+                              ),
+                            ),
+                            Text(
+                              '${(_customThemeBgOffsetY * 100).toInt()}%',
+                              style: TextStyle(
+                                color: isLight
+                                    ? Colors.black38
+                                    : Colors.white38,
+                                fontSize: 13,
+                                fontFamily: _activeFont,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Slider(
+                          value: _customThemeBgOffsetY,
+                          min: -1.0,
+                          max: 1.0,
+                          activeColor: _activeAccentColor,
+                          inactiveColor: isLight
+                              ? Colors.black.withOpacity(0.08)
+                              : Colors.white10,
+                          onChanged: (val) {
+                            setState(() {
+                              _customThemeBgOffsetY = val;
+                            });
+                            _saveDouble('customThemeBgOffsetY', val);
+                            customThemeBgOffsetYNotifier.value = val;
                           },
                         ),
                       ] else ...[
@@ -1060,6 +1162,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                         ),
                                         child: Transform.scale(
                                           scale: _playerCustomBgScale,
+                                          alignment: Alignment(
+                                            _playerCustomBgOffsetX,
+                                            _playerCustomBgOffsetY,
+                                          ),
                                           child: Image.file(
                                             File(_playerCustomBgPath!),
                                             fit: BoxFit.cover,
@@ -1076,7 +1182,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                       ),
                                     ),
                                   ),
-                                  // Mock Now Playing overlay elements for readability test!
                                   Center(
                                     child: Column(
                                       mainAxisAlignment:
@@ -1256,6 +1361,74 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           widget.onSetPlayerCustomBgScale(val);
                         },
                       ),
+                      // Pan X
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Pan Horizontal (X)',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 13,
+                            ),
+                          ),
+                          Text(
+                            '${(_playerCustomBgOffsetX * 100).toInt()}%',
+                            style: const TextStyle(
+                              color: Colors.white38,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Slider(
+                        value: _playerCustomBgOffsetX,
+                        min: -1.0,
+                        max: 1.0,
+                        activeColor: _activeAccentColor,
+                        inactiveColor: Colors.white10,
+                        onChanged: (val) {
+                          setState(() {
+                            _playerCustomBgOffsetX = val;
+                          });
+                          _saveDouble('playerCustomBgOffsetX', val);
+                          playerCustomBgOffsetXNotifier.value = val;
+                        },
+                      ),
+                      // Pan Y
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Pan Vertical (Y)',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 13,
+                            ),
+                          ),
+                          Text(
+                            '${(_playerCustomBgOffsetY * 100).toInt()}%',
+                            style: const TextStyle(
+                              color: Colors.white38,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Slider(
+                        value: _playerCustomBgOffsetY,
+                        min: -1.0,
+                        max: 1.0,
+                        activeColor: _activeAccentColor,
+                        inactiveColor: Colors.white10,
+                        onChanged: (val) {
+                          setState(() {
+                            _playerCustomBgOffsetY = val;
+                          });
+                          _saveDouble('playerCustomBgOffsetY', val);
+                          playerCustomBgOffsetYNotifier.value = val;
+                        },
+                      ),
                     ],
                   ),
                 ),
@@ -1350,6 +1523,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onChanged: (val) {
                   setState(() => _autoPlayAfterCall = val);
                   _saveBool('autoPlayAfterCall', val);
+                },
+              ),
+              _buildPremiumSwitchTile(
+                icon: Icons.layers_rounded,
+                title: 'Play Together with other Apps',
+                subtitle: 'Allow Tunza to play audio alongside other apps',
+                value: _playTogether,
+                onChanged: (val) {
+                  setState(() => _playTogether = val);
+                  _saveBool('playTogether', val);
+                  configureAudioSession(val); // Reconfigure dynamically
                 },
               ),
               _buildPremiumSwitchTile(

@@ -8,43 +8,38 @@ extension _PlayerUI on _MainScreenState {
       left: 0,
       right: 0,
       child: GestureDetector(
-        onTap: () => setState(() => _isPlayerOpen = true),
+        onTap: () => setState(() {
+          _isPlayerOpen = true;
+          _playerDragOffsetNotifier.value = 0.0;
+        }),
         onVerticalDragStart: (details) {
-          setState(() {
-            _isDraggingPlayer = true;
-            _isPlayerOpen = true;
-            _playerDragOffset = 1.0;
-          });
+          setState(() => _isPlayerOpen = true);
+          _isDraggingPlayerNotifier.value = true;
+          _playerDragOffsetNotifier.value = 1.0;
         },
         onVerticalDragUpdate: (details) {
           if (details.primaryDelta != null) {
-            setState(() {
-              _playerDragOffset +=
-                  details.primaryDelta! / MediaQuery.of(context).size.height;
-              if (_playerDragOffset < 0) _playerDragOffset = 0;
-              if (_playerDragOffset > 1) _playerDragOffset = 1;
-            });
+            final newVal =
+                _playerDragOffsetNotifier.value +
+                details.primaryDelta! / MediaQuery.of(context).size.height;
+            _playerDragOffsetNotifier.value = newVal.clamp(0.0, 1.0);
           }
         },
         onVerticalDragEnd: (details) {
-          setState(() {
-            _isDraggingPlayer = false;
-            if (_playerDragOffset < 0.85 ||
-                (details.primaryVelocity ?? 0) < -300) {
-              _isPlayerOpen = true;
-              _playerDragOffset = 0.0;
-            } else {
-              _isPlayerOpen = false;
-              _playerDragOffset = 0.0;
-            }
-          });
+          final offset = _playerDragOffsetNotifier.value;
+          _isDraggingPlayerNotifier.value = false;
+          if (offset < 0.85 || (details.primaryVelocity ?? 0) < -300) {
+            _playerDragOffsetNotifier.value = 0.0;
+            // already open, just snap to open position
+          } else {
+            _playerDragOffsetNotifier.value = 0.0;
+            setState(() => _isPlayerOpen = false);
+          }
         },
         onVerticalDragCancel: () {
-          setState(() {
-            _isDraggingPlayer = false;
-            _isPlayerOpen = false;
-            _playerDragOffset = 0.0;
-          });
+          _isDraggingPlayerNotifier.value = false;
+          _playerDragOffsetNotifier.value = 0.0;
+          setState(() => _isPlayerOpen = false);
         },
         child: TweenAnimationBuilder<Color?>(
           tween: ColorTween(
@@ -149,105 +144,19 @@ extension _PlayerUI on _MainScreenState {
     );
   }
 
-  Widget _buildLyricsOverlay(Track currentTrack) {
-    return Positioned(
-      top: 100,
-      left: 16,
-      right: 16,
-      bottom: 120,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-          child: Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.65),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Header (Mirrored with Now Playing View)
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    IconButton(
-                      icon: const Icon(
-                        Icons.keyboard_arrow_down,
-                        color: Colors.white54,
-                        size: 28,
-                      ),
-                      onPressed: () => setState(() => _showLyrics = false),
-                    ),
-                    Expanded(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            "LYRICS",
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 10,
-                              color: Colors.white38,
-                              letterSpacing: 1.5,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            currentTrack.title,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                              color: Colors.white,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(
-                        Icons.edit_note_rounded,
-                        color: Colors.white70,
-                        size: 26,
-                      ),
-                      tooltip: 'Edit Lyrics',
-                      onPressed: () => _showManualLyricsEditor(currentTrack),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-
-                // Content area based on loading & sync state
-                Expanded(
-                  child: _isLyricsLoading
-                      ? Center(
-                          child: CircularProgressIndicator(
-                            color: _activeAccentColor,
-                          ),
-                        )
-                      : (_isLyricsSynced
-                            ? _buildSyncedLyricsList(currentTrack)
-                            : _buildPlainLyricsView(currentTrack)),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
+  Widget _buildLyricsContent(Track currentTrack) {
+    return _isLyricsLoading
+        ? Center(child: CircularProgressIndicator(color: _activeAccentColor))
+        : (_isLyricsSynced
+              ? _buildSyncedLyricsList(currentTrack)
+              : _buildPlainLyricsView(currentTrack));
   }
 
   Widget _buildSyncedLyricsList(Track currentTrack) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final double viewportHeight = constraints.maxHeight;
-        final double itemHeight = 70.0;
+        final double itemHeight = 110.0;
         final double verticalPadding = (viewportHeight / 2) - (itemHeight / 2);
 
         return StreamBuilder<Duration>(
@@ -290,33 +199,50 @@ extension _PlayerUI on _MainScreenState {
               itemBuilder: (context, index) {
                 final line = _currentLyricsSynced[index];
                 final isHighlighted = index == activeIndex;
+                final rawText = line.text.trim();
+                final isEmptyLine =
+                    rawText.isEmpty ||
+                    rawText == '♪' ||
+                    rawText.toLowerCase() == '[music]' ||
+                    rawText.toLowerCase() == 'instrumental' ||
+                    rawText.toLowerCase() == '(instrumental)';
 
                 return GestureDetector(
                   onTap: () {
                     _smoothSeek(line.time);
                   },
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(minHeight: itemHeight),
+                  child: SizedBox(
+                    height: itemHeight,
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 16.0,
-                        vertical: 8.0,
+                        horizontal: 24.0,
+                        vertical: 12.0,
                       ),
                       alignment: Alignment.center,
                       color: Colors.transparent,
                       width: double.infinity,
                       child: AnimatedDefaultTextStyle(
-                        duration: const Duration(milliseconds: 250),
-                        curve: Curves.easeOut,
+                        duration: const Duration(milliseconds: 350),
+                        curve: Curves.easeOutCubic,
                         style: TextStyle(
-                          fontSize: isHighlighted ? 22 : 17,
-                          fontWeight: FontWeight.bold,
+                          fontSize: 26,
+                          fontWeight: isHighlighted
+                              ? FontWeight.w800
+                              : FontWeight.w600,
                           fontFamily: _activeFont,
                           color: isHighlighted
-                              ? _activeAccentColor
+                              ? Colors.white
                               : Colors.white.withValues(alpha: 0.35),
+                          height: 1.3,
                         ),
-                        child: Text(line.text, textAlign: TextAlign.center),
+                        child: isEmptyLine
+                            ? _WaveDots(isHighlighted: isHighlighted)
+                            : Text(
+                                line.text,
+                                textAlign: TextAlign.center,
+                                maxLines: 3,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                       ),
                     ),
                   ),
@@ -366,15 +292,16 @@ extension _PlayerUI on _MainScreenState {
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8.0),
+        padding: const EdgeInsets.symmetric(vertical: 24.0, horizontal: 24.0),
         child: Text(
           _currentLyricsPlain!,
+          textAlign: TextAlign.center,
           style: TextStyle(
-            fontSize: 16,
-            height: 1.6,
+            fontSize: 20,
+            height: 1.8,
             fontFamily: _activeFont,
             color: Colors.white.withValues(alpha: 0.85),
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ),
@@ -537,6 +464,7 @@ extension _PlayerUI on _MainScreenState {
     final customPath = _metadataOverrides[track.id]?['coverPath'];
     if (customPath != null) {
       return Container(
+        key: ValueKey("artwork_custom_${track.id}_$size"),
         width: size,
         height: size,
         decoration: BoxDecoration(
@@ -549,6 +477,7 @@ extension _PlayerUI on _MainScreenState {
       );
     }
     return ClipRRect(
+      key: ValueKey("artwork_query_${track.id}_$size"),
       borderRadius: BorderRadius.circular(radius),
       child: QueryArtworkWidget(
         id: int.parse(track.id),
@@ -579,35 +508,31 @@ extension _PlayerUI on _MainScreenState {
       color: Colors.transparent,
       child: GestureDetector(
         onVerticalDragStart: (details) {
-          setState(() {
-            _isDraggingPlayer = true;
-          });
+          _isDraggingPlayerNotifier.value = true;
         },
         onVerticalDragUpdate: (details) {
           if (details.primaryDelta != null) {
-            setState(() {
-              _playerDragOffset +=
-                  details.primaryDelta! / MediaQuery.of(context).size.height;
-              if (_playerDragOffset < 0) _playerDragOffset = 0;
-            });
+            final newVal =
+                _playerDragOffsetNotifier.value +
+                details.primaryDelta! / MediaQuery.of(context).size.height;
+            _playerDragOffsetNotifier.value = newVal < 0 ? 0.0 : newVal;
           }
         },
         onVerticalDragEnd: (details) {
-          setState(() {
-            _isDraggingPlayer = false;
-            if (_playerDragOffset > 0.15 ||
-                (details.primaryVelocity ?? 0) > 300) {
+          final offset = _playerDragOffsetNotifier.value;
+          _isDraggingPlayerNotifier.value = false;
+          if (offset > 0.15 || (details.primaryVelocity ?? 0) > 300) {
+            setState(() {
               _isPlayerOpen = false;
               _showLyrics = false;
-            }
-            _playerDragOffset = 0.0;
-          });
+            });
+          } else {
+            _playerDragOffsetNotifier.value = 0.0;
+          }
         },
         onVerticalDragCancel: () {
-          setState(() {
-            _isDraggingPlayer = false;
-            _playerDragOffset = 0.0;
-          });
+          _isDraggingPlayerNotifier.value = false;
+          _playerDragOffsetNotifier.value = 0.0;
         },
         child: Stack(
           children: [
@@ -672,9 +597,13 @@ extension _PlayerUI on _MainScreenState {
                           return ValueListenableBuilder<double>(
                             valueListenable: _playerCustomBgDimNotifier,
                             builder: (context, dimVal, child) {
-                              return ValueListenableBuilder<double>(
-                                valueListenable: _playerCustomBgScaleNotifier,
-                                builder: (context, scaleVal, child) {
+                              return AnimatedBuilder(
+                                animation: Listenable.merge([
+                                  _playerCustomBgScaleNotifier,
+                                  playerCustomBgOffsetXNotifier,
+                                  playerCustomBgOffsetYNotifier,
+                                ]),
+                                builder: (context, child) {
                                   return Stack(
                                     children: [
                                       Positioned.fill(
@@ -692,7 +621,15 @@ extension _PlayerUI on _MainScreenState {
                                                 sigmaY: blurVal,
                                               ),
                                               child: Transform.scale(
-                                                scale: scaleVal,
+                                                scale:
+                                                    _playerCustomBgScaleNotifier
+                                                        .value,
+                                                alignment: Alignment(
+                                                  playerCustomBgOffsetXNotifier
+                                                      .value,
+                                                  playerCustomBgOffsetYNotifier
+                                                      .value,
+                                                ),
                                                 child: Image.file(
                                                   File(customPath),
                                                   fit: BoxFit.cover,
@@ -790,94 +727,199 @@ extension _PlayerUI on _MainScreenState {
                             color: Colors.white54,
                             size: 28,
                           ),
-                          onPressed: () =>
-                              setState(() => _isPlayerOpen = false),
+                          onPressed: () => setState(() {
+                            _isPlayerOpen = false;
+                            _showLyrics = false;
+                          }),
                         ),
-                        ValueListenableBuilder<int>(
-                          valueListenable: _sleepTimerNotifier,
-                          builder: (context, remaining, child) {
-                            if (remaining > 0) {
-                              final mins = (remaining / 60)
-                                  .floor()
-                                  .toString()
-                                  .padLeft(2, '0');
-                              final secs = (remaining % 60).toString().padLeft(
-                                2,
-                                '0',
-                              );
-                              return Text(
-                                'SLEEP IN $mins:$secs',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 13,
-                                  color: _activeAccentColor,
-                                  letterSpacing: 1.5,
-                                ),
-                              );
-                            }
-                            return Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  "PLAYING FROM $_playingFromType",
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 10,
-                                    color: Colors.white38,
-                                    letterSpacing: 1.5,
+                        Expanded(
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 300),
+                            child: _showLyrics
+                                ? Column(
+                                    key: const ValueKey('lyrics_header'),
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Text(
+                                        'LYRICS',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 10,
+                                          color: Colors.white38,
+                                          letterSpacing: 1.5,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        currentTrack.title,
+                                        textAlign: TextAlign.center,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14,
+                                          color: Colors.white,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
+                                  )
+                                : ValueListenableBuilder<int>(
+                                    key: const ValueKey('player_header'),
+                                    valueListenable: _sleepTimerNotifier,
+                                    builder: (context, remaining, child) {
+                                      if (remaining > 0) {
+                                        final mins = (remaining / 60)
+                                            .floor()
+                                            .toString()
+                                            .padLeft(2, '0');
+                                        final secs = (remaining % 60)
+                                            .toString()
+                                            .padLeft(2, '0');
+                                        return Text(
+                                          'SLEEP IN $mins:$secs',
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 13,
+                                            color: _activeAccentColor,
+                                            letterSpacing: 1.5,
+                                          ),
+                                        );
+                                      }
+                                      return Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            'PLAYING FROM $_playingFromType',
+                                            textAlign: TextAlign.center,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 10,
+                                              color: Colors.white38,
+                                              letterSpacing: 1.5,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            _playingFromName,
+                                            textAlign: TextAlign.center,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 14,
+                                              color: Colors.white,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ],
+                                      );
+                                    },
                                   ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  _playingFromName,
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
-                                    color: Colors.white,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
-                            );
-                          },
-                        ),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.more_vert,
-                            color: Colors.white54,
                           ),
-                          onPressed: () =>
-                              _showTrackOptions(context, currentTrack),
+                        ),
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 200),
+                          child: _showLyrics
+                              ? IconButton(
+                                  key: const ValueKey('edit_lyrics_btn'),
+                                  icon: const Icon(
+                                    Icons.edit_note_rounded,
+                                    color: Colors.white70,
+                                    size: 26,
+                                  ),
+                                  tooltip: 'Edit Lyrics',
+                                  onPressed: () =>
+                                      _showManualLyricsEditor(currentTrack),
+                                )
+                              : IconButton(
+                                  key: const ValueKey('more_vert_btn'),
+                                  icon: const Icon(
+                                    Icons.more_vert,
+                                    color: Colors.white54,
+                                  ),
+                                  onPressed: () =>
+                                      _showTrackOptions(context, currentTrack),
+                                ),
                         ),
                       ],
                     ),
-                    const Spacer(flex: 2),
 
-                    Center(
-                      child: Container(
-                        width: MediaQuery.of(context).size.width * 0.85,
-                        height: MediaQuery.of(context).size.width * 0.85,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(24),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.4),
-                              blurRadius: 30,
-                              offset: const Offset(0, 10),
+                    Expanded(
+                      child: Stack(
+                        children: [
+                          AnimatedOpacity(
+                            opacity: _showLyrics ? 0.0 : 1.0,
+                            duration: const Duration(milliseconds: 350),
+                            curve: Curves.easeInOut,
+                            child: IgnorePointer(
+                              ignoring: _showLyrics,
+                              child: GestureDetector(
+                                onTap: () {
+                                  setState(() => _showLyrics = true);
+                                  _loadLyricsForTrack(currentTrack);
+                                },
+                                child: Center(
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 12.0,
+                                    ),
+                                    child: AspectRatio(
+                                      aspectRatio: 1.0,
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(
+                                            24,
+                                          ),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Colors.black.withValues(
+                                                alpha: 0.45,
+                                              ),
+                                              blurRadius: 35,
+                                              offset: const Offset(0, 12),
+                                            ),
+                                          ],
+                                        ),
+                                        child: ClipRRect(
+                                          borderRadius: BorderRadius.circular(
+                                            24,
+                                          ),
+                                          child: _buildTrackArtwork(
+                                            currentTrack,
+                                            size:
+                                                MediaQuery.of(
+                                                  context,
+                                                ).size.width *
+                                                0.85,
+                                            radius: 24,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
                             ),
-                          ],
-                        ),
-                        child: _buildTrackArtwork(
-                          currentTrack,
-                          size: MediaQuery.of(context).size.width * 0.85,
-                          radius: 24,
-                        ),
+                          ),
+
+                          AnimatedOpacity(
+                            opacity: _showLyrics ? 1.0 : 0.0,
+                            duration: const Duration(milliseconds: 350),
+                            curve: Curves.easeInOut,
+                            child: IgnorePointer(
+                              ignoring: !_showLyrics,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12.0,
+                                ),
+                                child: _buildLyricsContent(currentTrack),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const Spacer(flex: 2),
 
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1021,7 +1063,7 @@ extension _PlayerUI on _MainScreenState {
                         );
                       },
                     ),
-                    const Spacer(),
+                    const SizedBox(height: 8),
 
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -1084,47 +1126,8 @@ extension _PlayerUI on _MainScreenState {
                         ),
                       ],
                     ),
-                    const Spacer(),
 
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.volume_down,
-                          color: Colors.white.withValues(alpha: 0.3),
-                          size: 16,
-                        ),
-                        Expanded(
-                          child: SliderTheme(
-                            data: SliderTheme.of(context).copyWith(
-                              trackHeight: 2,
-                              thumbShape: const RoundSliderThumbShape(
-                                enabledThumbRadius: 5,
-                              ),
-                              activeTrackColor: Colors.white60,
-                              inactiveTrackColor: Colors.white.withValues(
-                                alpha: 0.08,
-                              ),
-                              thumbColor: Colors.white,
-                            ),
-                            child: Slider(
-                              value: _volume,
-                              onChanged: (val) {
-                                setState(() {
-                                  _volume = val;
-                                });
-                                _audioPlayer.setVolume(val);
-                              },
-                            ),
-                          ),
-                        ),
-                        Icon(
-                          Icons.volume_up,
-                          color: Colors.white.withValues(alpha: 0.3),
-                          size: 16,
-                        ),
-                      ],
-                    ),
-                    const Spacer(),
+                    const SizedBox(height: 16),
 
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1167,6 +1170,7 @@ extension _PlayerUI on _MainScreenState {
                                 _shuffledIndices.insert(0, _currentIndex);
                               }
                             });
+                            _refreshAudioSourceWindow();
                           },
                         ),
                         IconButton(
@@ -1194,11 +1198,87 @@ extension _PlayerUI on _MainScreenState {
                 ),
               ),
             ),
-
-            if (_showLyrics) _buildLyricsOverlay(currentTrack),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _WaveDots extends StatefulWidget {
+  final bool isHighlighted;
+
+  const _WaveDots({required this.isHighlighted});
+
+  @override
+  _WaveDotsState createState() => _WaveDotsState();
+}
+
+class _WaveDotsState extends State<_WaveDots>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
+    if (widget.isHighlighted) {
+      _controller.repeat();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _WaveDots oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isHighlighted && !oldWidget.isHighlighted) {
+      _controller.repeat();
+    } else if (!widget.isHighlighted && oldWidget.isHighlighted) {
+      _controller.stop();
+      _controller.animateTo(0, duration: const Duration(milliseconds: 300));
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(3, (index) {
+            final delay = index * (pi / 2.5);
+            final t = (_controller.value * 2 * pi) + delay;
+            final offset = widget.isHighlighted ? sin(t) * 6.0 : 0.0;
+
+            return Transform.translate(
+              offset: Offset(0, offset),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 350),
+                  width: widget.isHighlighted ? 10.0 : 8.0,
+                  height: widget.isHighlighted ? 10.0 : 8.0,
+                  decoration: BoxDecoration(
+                    color: widget.isHighlighted
+                        ? Colors.white
+                        : Colors.white.withValues(alpha: 0.35),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+            );
+          }),
+        );
+      },
     );
   }
 }

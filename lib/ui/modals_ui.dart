@@ -171,6 +171,13 @@ extension _ModalsUI on _MainScreenState {
                         _playbackQueue.removeWhere((t) => t.id == track.id);
                         _cachedDetailKey = null;
                       });
+                      final serialized = _allTracks
+                          .map((t) => t.toMap())
+                          .toList();
+                      await prefs.setString(
+                        'cached_tracks_list',
+                        jsonEncode(serialized),
+                      );
                       showTunzaToast("Track hidden from library");
                     },
                   ),
@@ -188,6 +195,14 @@ extension _ModalsUI on _MainScreenState {
                             _playbackQueue.removeWhere((t) => t.id == track.id);
                             _cachedDetailKey = null;
                           });
+                          final prefs = await SharedPreferences.getInstance();
+                          final serialized = _allTracks
+                              .map((t) => t.toMap())
+                              .toList();
+                          await prefs.setString(
+                            'cached_tracks_list',
+                            jsonEncode(serialized),
+                          );
                           showTunzaToast("Track deleted");
                         } else {
                           showTunzaToast("File not found");
@@ -257,6 +272,13 @@ extension _ModalsUI on _MainScreenState {
                                       );
                                       _cachedDetailKey = null;
                                     });
+                                    final serialized = _allTracks
+                                        .map((t) => t.toMap())
+                                        .toList();
+                                    await prefs.setString(
+                                      'cached_tracks_list',
+                                      jsonEncode(serialized),
+                                    );
                                     showTunzaToast("Track hidden from library");
                                   },
                                   child: Text(
@@ -627,7 +649,6 @@ extension _ModalsUI on _MainScreenState {
                             ),
                           ),
                           const Spacer(),
-                          // Delete Selected button (trash bin)
                           IconButton(
                             onPressed: !hasSelection
                                 ? null
@@ -1191,6 +1212,25 @@ extension _ModalsUI on _MainScreenState {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
+                          if (_metadataOverrides.containsKey(track.id))
+                            TextButton(
+                              onPressed: () {
+                                setState(() {
+                                  _metadataOverrides.remove(track.id);
+                                });
+                                _saveMetadataOverrides();
+                                _requestPermissionAndScan();
+                                Navigator.pop(context);
+                                showTunzaToast("Metadata reset to original");
+                              },
+                              child: Text(
+                                'Reset',
+                                style: TextStyle(
+                                  color: Colors.redAccent,
+                                  fontFamily: _activeFont,
+                                ),
+                              ),
+                            ),
                           TextButton(
                             onPressed: () => Navigator.pop(context),
                             child: Text(

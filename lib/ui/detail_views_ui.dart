@@ -19,7 +19,20 @@ extension _DetailViewsUI on _MainScreenState {
       return _lastDetailView ?? const SizedBox.shrink();
     }
 
-    String currentKey = "${baseName}_${_searchQuery}_$type";
+    String dynamicKeyPart = '';
+    if (baseName == 'Favourites') {
+      dynamicKeyPart = _favoriteTrackIds.length.toString();
+    } else if (baseName == 'Last Played') {
+      dynamicKeyPart = _lastPlayedTrackIds.length.toString();
+    } else if (baseName == 'Most Played') {
+      dynamicKeyPart = _playCounts.values
+          .fold<int>(0, (a, b) => a + b)
+          .toString();
+    } else if (_userPlaylists.containsKey(baseName)) {
+      dynamicKeyPart = _userPlaylists[baseName]?.length.toString() ?? '0';
+    }
+
+    String currentKey = "${baseName}_${_searchQuery}_${type}_$dynamicKeyPart";
 
     if (_cachedDetailKey != currentKey ||
         _cachedDetailSongs == null ||
@@ -94,31 +107,86 @@ extension _DetailViewsUI on _MainScreenState {
             icon = Icons.queue_music;
           }
 
-          imageWidget = Container(
-            width: 220,
-            height: 220,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(24),
-              child: pSongs.isNotEmpty
-                  ? _buildTrackArtwork(pSongs.first, size: 220, radius: 24)
-                  : Icon(icon, size: 80, color: color),
-            ),
-          );
+          List<Track> distinctCovers = [];
+          Set<String> seenAlbums = {};
+          for (var t in pSongs) {
+            if (!seenAlbums.contains(t.album)) {
+              seenAlbums.add(t.album);
+              distinctCovers.add(t);
+            }
+          }
+
+          if (distinctCovers.length >= 4) {
+            imageWidget = Container(
+              width: 260,
+              height: 260,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        _buildTrackArtwork(
+                          distinctCovers[0],
+                          size: 130,
+                          radius: 0,
+                        ),
+                        _buildTrackArtwork(
+                          distinctCovers[1],
+                          size: 130,
+                          radius: 0,
+                        ),
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        _buildTrackArtwork(
+                          distinctCovers[2],
+                          size: 130,
+                          radius: 0,
+                        ),
+                        _buildTrackArtwork(
+                          distinctCovers[3],
+                          size: 130,
+                          radius: 0,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          } else {
+            imageWidget = Container(
+              width: 260,
+              height: 260,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: pSongs.isNotEmpty
+                    ? _buildTrackArtwork(pSongs.first, size: 260, radius: 0)
+                    : Icon(icon, size: 80, color: color),
+              ),
+            );
+          }
         }
       } else if (type == 'Artist') {
         pSongs = _allTracks.where((t) => t.artist == baseName).toList();
         imageWidget = pSongs.isNotEmpty
-            ? _buildTrackArtwork(pSongs.first, size: 220, radius: 24)
-            : const SizedBox(width: 220, height: 220);
+            ? _buildTrackArtwork(pSongs.first, size: 260, radius: 130)
+            : const SizedBox(width: 260, height: 260);
       } else if (type == 'Album') {
         pSongs = _allTracks.where((t) => t.album == baseName).toList();
         imageWidget = pSongs.isNotEmpty
-            ? _buildTrackArtwork(pSongs.first, size: 220, radius: 24)
-            : const SizedBox(width: 220, height: 220);
+            ? _buildTrackArtwork(pSongs.first, size: 260, radius: 12)
+            : const SizedBox(width: 260, height: 260);
       }
 
       if (_searchQuery.isNotEmpty) {
@@ -181,11 +249,9 @@ extension _DetailViewsUI on _MainScreenState {
     final header = GestureDetector(
       onVerticalDragUpdate: (details) {
         if (details.primaryDelta! > 0) {
-          setState(() {
-            _isDraggingDetail = true;
-            _detailDragOffset +=
-                details.primaryDelta! / MediaQuery.of(context).size.height;
-          });
+          _isDraggingDetailNotifier.value = true;
+          _detailDragOffsetNotifier.value +=
+              details.primaryDelta! / MediaQuery.of(context).size.height;
         } else if (details.primaryDelta! < 0) {
           if (_detailScrollController.hasClients) {
             _detailScrollController.jumpTo(
@@ -198,17 +264,19 @@ extension _DetailViewsUI on _MainScreenState {
         }
       },
       onVerticalDragEnd: (details) {
-        setState(() {
-          _isDraggingDetail = false;
-          if (_detailDragOffset > 0.2 ||
-              (details.primaryVelocity != null &&
-                  details.primaryVelocity! > 300)) {
+        final offset = _detailDragOffsetNotifier.value;
+        _isDraggingDetailNotifier.value = false;
+        if (offset > 0.2 ||
+            (details.primaryVelocity != null &&
+                details.primaryVelocity! > 300)) {
+          setState(() {
             _selectedPlaylistDetail = null;
             _selectedArtistDetail = null;
             _selectedAlbumDetail = null;
-          }
-          _detailDragOffset = 0.0;
-        });
+          });
+        } else {
+          _detailDragOffsetNotifier.value = 0.0;
+        }
       },
       child: Container(
         color: Colors.transparent,
@@ -277,10 +345,12 @@ extension _DetailViewsUI on _MainScreenState {
             ),
             const SizedBox(height: 16),
             Container(
-              width: 220,
-              height: 220,
+              width: 260,
+              height: 260,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: BorderRadius.circular(
+                  type == 'Artist' ? 130 : 12,
+                ),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withValues(alpha: isLight ? 0.15 : 0.4),
@@ -290,113 +360,135 @@ extension _DetailViewsUI on _MainScreenState {
                 ],
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: BorderRadius.circular(
+                  type == 'Artist' ? 130 : 12,
+                ),
                 child: imageWidget,
-              ),
-            ),
-            const SizedBox(height: 32),
-            Text(
-              type.toUpperCase(),
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 2,
-                color: isLight ? Colors.black45 : Colors.white54,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-                color: isLight ? const Color(0xFF1A1A1A) : Colors.white,
-                height: 1.1,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              subtitle,
-              style: TextStyle(
-                fontSize: 14,
-                color: isLight ? Colors.black54 : Colors.white70,
               ),
             ),
             const SizedBox(height: 24),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.start,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  FloatingActionButton(
-                    heroTag: null,
-                    backgroundColor: _activeAccentColor,
-                    onPressed: () {
-                      if (tracks.isNotEmpty) {
-                        _updatePlayingFrom();
-                        setState(() {
-                          _playbackQueue = List.from(tracks);
-                          _shuffledIndices.clear();
-                          if (_isShuffle) {
-                            _shuffledIndices = List.generate(
-                              _playbackQueue.length,
-                              (i) => i,
-                            );
-                            _shuffledIndices.shuffle();
-                          }
-                        });
-                        _playTrack(0);
-                      }
-                    },
-                    child: const Icon(
-                      Icons.play_arrow,
-                      color: Colors.black,
-                      size: 36,
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: isLight ? const Color(0xFF1A1A1A) : Colors.white,
+                      height: 1.1,
                     ),
                   ),
-                  const SizedBox(width: 24),
-                  IconButton(
-                    icon: Icon(
-                      Icons.shuffle,
-                      color: isLight ? Colors.black45 : Colors.white54,
-                      size: 30,
-                    ),
-                    onPressed: () {
-                      if (tracks.isNotEmpty) {
-                        _updatePlayingFrom();
-                        final shuffledTracks = List<Track>.from(tracks)
-                          ..shuffle();
-                        _playTrack(0, sourceList: shuffledTracks);
-                      }
-                    },
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    icon: Icon(
-                      Icons.sort_rounded,
-                      color: isLight ? Colors.black54 : Colors.white70,
-                      size: 26,
-                    ),
-                    onPressed: () {
-                      _showDetailSortModal(context);
-                    },
-                    tooltip: 'Sort Songs',
-                  ),
-                  if (type == 'Playlist' &&
-                      _userPlaylists.containsKey(title)) ...[
-                    IconButton(
-                      icon: Icon(
-                        Icons.edit_note_rounded,
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.public,
+                        size: 14,
                         color: isLight ? Colors.black54 : Colors.white70,
-                        size: 28,
                       ),
-                      onPressed: () {
-                        _showEditPlaylistSongsModal(context, title);
-                      },
-                      tooltip: 'Edit Playlist',
-                    ),
-                  ],
+                      const SizedBox(width: 4),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: isLight ? Colors.black54 : Colors.white70,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          if (type == 'Playlist' &&
+                              _userPlaylists.containsKey(title))
+                            IconButton(
+                              icon: Icon(
+                                Icons.edit_note_rounded,
+                                color: isLight
+                                    ? Colors.black54
+                                    : Colors.white70,
+                                size: 28,
+                              ),
+                              onPressed: () {
+                                _showEditPlaylistSongsModal(context, title);
+                              },
+                              tooltip: 'Edit Playlist',
+                            ),
+                          IconButton(
+                            icon: Icon(
+                              Icons.sort_rounded,
+                              color: isLight ? Colors.black54 : Colors.white70,
+                              size: 26,
+                            ),
+                            onPressed: () {
+                              _showDetailSortModal(context);
+                            },
+                            tooltip: 'Sort Songs',
+                          ),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: Icon(
+                              Icons.shuffle,
+                              color: _isShuffle
+                                  ? _activeAccentColor
+                                  : (isLight ? Colors.black45 : Colors.white54),
+                              size: 30,
+                            ),
+                            onPressed: () {
+                              if (tracks.isNotEmpty) {
+                                _updatePlayingFrom();
+                                final shuffledTracks = List<Track>.from(tracks)
+                                  ..shuffle();
+                                _playTrack(0, sourceList: shuffledTracks);
+                              }
+                            },
+                          ),
+                          const SizedBox(width: 16),
+                          SizedBox(
+                            width: 56,
+                            height: 56,
+                            child: FloatingActionButton(
+                              heroTag: null,
+                              backgroundColor: _activeAccentColor,
+                              shape: const CircleBorder(),
+                              elevation: 0,
+                              onPressed: () {
+                                if (tracks.isNotEmpty) {
+                                  _updatePlayingFrom();
+                                  setState(() {
+                                    _playbackQueue = List.from(tracks);
+                                    _shuffledIndices.clear();
+                                    if (_isShuffle) {
+                                      _shuffledIndices = List.generate(
+                                        _playbackQueue.length,
+                                        (i) => i,
+                                      );
+                                      _shuffledIndices.shuffle();
+                                    }
+                                  });
+                                  _playTrack(0);
+                                }
+                              },
+                              child: const Icon(
+                                Icons.play_arrow,
+                                color: Colors.white,
+                                size: 36,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -429,20 +521,22 @@ extension _DetailViewsUI on _MainScreenState {
                       ),
                       if (firstTrack != null)
                         Positioned.fill(
-                          child: ClipRect(
-                            child: ImageFiltered(
-                              imageFilter: ImageFilter.blur(
-                                sigmaX: 45.0,
-                                sigmaY: 45.0,
-                              ),
-                              child: Opacity(
-                                opacity: isLight ? 0.3 : 0.55,
-                                child: Transform.scale(
-                                  scale: 2.2,
-                                  child: _buildTrackArtwork(
-                                    firstTrack,
-                                    size: 400,
-                                    radius: 0,
+                          child: RepaintBoundary(
+                            child: ClipRect(
+                              child: ImageFiltered(
+                                imageFilter: ImageFilter.blur(
+                                  sigmaX: 45.0,
+                                  sigmaY: 45.0,
+                                ),
+                                child: Opacity(
+                                  opacity: isLight ? 0.3 : 0.55,
+                                  child: Transform.scale(
+                                    scale: 2.2,
+                                    child: _buildTrackArtwork(
+                                      firstTrack,
+                                      size: 400,
+                                      radius: 0,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -479,9 +573,13 @@ extension _DetailViewsUI on _MainScreenState {
                           return ValueListenableBuilder<double>(
                             valueListenable: _playerCustomBgDimNotifier,
                             builder: (context, dimVal, child) {
-                              return ValueListenableBuilder<double>(
-                                valueListenable: _playerCustomBgScaleNotifier,
-                                builder: (context, scaleVal, child) {
+                              return AnimatedBuilder(
+                                animation: Listenable.merge([
+                                  _playerCustomBgScaleNotifier,
+                                  playerCustomBgOffsetXNotifier,
+                                  playerCustomBgOffsetYNotifier,
+                                ]),
+                                builder: (context, child) {
                                   final dimColor = isLight
                                       ? Colors.white
                                       : Colors.black;
@@ -495,17 +593,27 @@ extension _DetailViewsUI on _MainScreenState {
                                       if (customPath != null &&
                                           File(customPath).existsSync())
                                         Positioned.fill(
-                                          child: ClipRect(
-                                            child: ImageFiltered(
-                                              imageFilter: ImageFilter.blur(
-                                                sigmaX: blurVal,
-                                                sigmaY: blurVal,
-                                              ),
-                                              child: Transform.scale(
-                                                scale: scaleVal,
-                                                child: Image.file(
-                                                  File(customPath),
-                                                  fit: BoxFit.cover,
+                                          child: RepaintBoundary(
+                                            child: ClipRect(
+                                              child: ImageFiltered(
+                                                imageFilter: ImageFilter.blur(
+                                                  sigmaX: blurVal,
+                                                  sigmaY: blurVal,
+                                                ),
+                                                child: Transform.scale(
+                                                  scale:
+                                                      _playerCustomBgScaleNotifier
+                                                          .value,
+                                                  alignment: Alignment(
+                                                    playerCustomBgOffsetXNotifier
+                                                        .value,
+                                                    playerCustomBgOffsetYNotifier
+                                                        .value,
+                                                  ),
+                                                  child: Image.file(
+                                                    File(customPath),
+                                                    fit: BoxFit.cover,
+                                                  ),
                                                 ),
                                               ),
                                             ),
@@ -594,25 +702,25 @@ extension _DetailViewsUI on _MainScreenState {
     return GestureDetector(
       onVerticalDragUpdate: (details) {
         if (details.primaryDelta! > 0) {
-          setState(() {
-            _isDraggingDetail = true;
-            _detailDragOffset +=
-                details.primaryDelta! / MediaQuery.of(context).size.height;
-          });
+          _isDraggingDetailNotifier.value = true;
+          _detailDragOffsetNotifier.value +=
+              details.primaryDelta! / MediaQuery.of(context).size.height;
         }
       },
       onVerticalDragEnd: (details) {
-        setState(() {
-          _isDraggingDetail = false;
-          if (_detailDragOffset > 0.2 ||
-              (details.primaryVelocity != null &&
-                  details.primaryVelocity! > 300)) {
+        final offset = _detailDragOffsetNotifier.value;
+        _isDraggingDetailNotifier.value = false;
+        if (offset > 0.2 ||
+            (details.primaryVelocity != null &&
+                details.primaryVelocity! > 300)) {
+          setState(() {
             _selectedPlaylistDetail = null;
             _selectedArtistDetail = null;
             _selectedAlbumDetail = null;
-          }
-          _detailDragOffset = 0.0;
-        });
+          });
+        } else {
+          _detailDragOffsetNotifier.value = 0.0;
+        }
       },
       child: detailStack,
     );
