@@ -1,12 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:tunza/main.dart';
+import 'package:flow/main.dart';
 
 void main() {
-  testWidgets('TunzaApp rendering smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const TunzaApp());
+  testWidgets('FlowApp rendering smoke test', (WidgetTester tester) async {
+    await tester.pumpWidget(const FlowApp());
 
-    // Verify that Tunza title is rendered
-    expect(find.text('TUNZA'), findsOneWidget);
+    expect(find.text('FLOW'), findsOneWidget);
   });
 }

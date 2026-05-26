@@ -432,7 +432,7 @@ extension _PlayerUI on _MainScreenState {
                 }
                 navigator.pop();
                 _loadLyricsForTrack(currentTrack);
-                showTunzaToast('Lyrics updated!');
+                showFlowToast('Lyrics updated!');
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: _activeAccentColor,

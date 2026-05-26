@@ -1,0 +1,1896 @@
+// ignore_for_file: library_private_types_in_public_api, deprecated_member_use, invalid_use_of_protected_member
+part of 'settings_screen.dart';
+
+extension SettingsModals on _SettingsScreenState {
+  void _showSleepTimerDialog() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF161616),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      isScrollControlled: true,
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 12),
+              // Drag Handle
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Center(
+                child: Text(
+                  'Sleep timer',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Divider(color: Colors.white10, height: 1),
+              _buildTimerOption('5 minutes', 5),
+              _buildTimerOption('10 minutes', 10),
+              _buildTimerOption('15 minutes', 15),
+              _buildTimerOption('30 minutes', 30),
+              _buildTimerOption('45 minutes', 45),
+              _buildTimerOption('1 hour', 60),
+              _buildTimerOption('End of track', -1),
+              _buildTimerOption('Turn off', 0),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildTimerOption(String title, int minutes) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+      title: Text(
+        title,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 16,
+          fontWeight: FontWeight.w400,
+        ),
+      ),
+      onTap: () {
+        widget.onSetSleepTimer(minutes);
+        Navigator.pop(context);
+      },
+    );
+  }
+
+  void _showResetConfirmation() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1E1E1E),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.redAccent),
+              SizedBox(width: 8),
+              Text('Reset App Data?', style: TextStyle(color: Colors.white)),
+            ],
+          ),
+          content: const Text(
+            'This will permanently delete your custom playlists, favorites, and play statistics.\n\nAudio files on your device will NOT be deleted.',
+            style: TextStyle(color: Colors.white70, height: 1.5),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: Colors.white54),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.pop(context); // close settings
+                widget.onResetData();
+              },
+              child: const Text(
+                'Reset',
+                style: TextStyle(
+                  color: Colors.redAccent,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _showHiddenTracksSheet(BuildContext context) {
+    return showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF0A0A0A),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return FutureBuilder<List<SongModel>>(
+              future: _songsFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return SizedBox(
+                    height: 400,
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          _activeAccentColor,
+                        ),
+                      ),
+                    ),
+                  );
+                }
+
+                final allSongs = snapshot.data ?? [];
+                final List<SongModel> displaySongs =
+                    allSongs.where((song) {
+                      final bool isManuallyHidden = _hiddenTrackIds.contains(
+                        song.id.toString(),
+                      );
+                      final bool isShortAudio =
+                          _filterShortAudio && (song.duration ?? 0) < 30000;
+                      return isManuallyHidden || isShortAudio;
+                    }).toList()..sort(
+                      (a, b) => a.title.toLowerCase().compareTo(
+                        b.title.toLowerCase(),
+                      ),
+                    );
+
+                return Container(
+                  height: MediaQuery.of(context).size.height * 0.75,
+                  padding: const EdgeInsets.only(
+                    top: 12,
+                    left: 24,
+                    right: 24,
+                    bottom: 24,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: Colors.white24,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Hidden & Filtered Tracks',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            '${displaySongs.length} tracks',
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.4),
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Manage tracks that are manually hidden or automatically filtered out by your settings.',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.5),
+                          fontSize: 12,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Expanded(
+                        child: displaySongs.isEmpty
+                            ? Center(
+                                child: Text(
+                                  'No hidden tracks found',
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.3),
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              )
+                            : ListView.builder(
+                                physics: const BouncingScrollPhysics(),
+                                itemCount: displaySongs.length,
+                                itemBuilder: (context, index) {
+                                  final song = displaySongs[index];
+                                  final bool isManuallyHidden = _hiddenTrackIds
+                                      .contains(song.id.toString());
+                                  final bool isShortAudio =
+                                      _filterShortAudio &&
+                                      (song.duration ?? 0) < 30000;
+
+                                  return Container(
+                                    margin: const EdgeInsets.only(bottom: 8),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 10,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF161616),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                song.title,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 14,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Row(
+                                                children: [
+                                                  Expanded(
+                                                    child: Text(
+                                                      song.artist ??
+                                                          'Unknown Artist',
+                                                      maxLines: 1,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                      style: TextStyle(
+                                                        color: Colors.white
+                                                            .withOpacity(0.3),
+                                                        fontSize: 11,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 8),
+                                                  if (isManuallyHidden)
+                                                    Container(
+                                                      padding:
+                                                          const EdgeInsets.symmetric(
+                                                            horizontal: 6,
+                                                            vertical: 2,
+                                                          ),
+                                                      decoration: BoxDecoration(
+                                                        color: Colors.orange
+                                                            .withOpacity(0.1),
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              4,
+                                                            ),
+                                                        border: Border.all(
+                                                          color: Colors.orange
+                                                              .withOpacity(0.3),
+                                                          width: 1,
+                                                        ),
+                                                      ),
+                                                      child: const Text(
+                                                        'HIDDEN',
+                                                        style: TextStyle(
+                                                          color: Colors.orange,
+                                                          fontSize: 8,
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  if (isShortAudio)
+                                                    Container(
+                                                      padding:
+                                                          const EdgeInsets.symmetric(
+                                                            horizontal: 6,
+                                                            vertical: 2,
+                                                          ),
+                                                      decoration: BoxDecoration(
+                                                        color: Colors.cyan
+                                                            .withOpacity(0.1),
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              4,
+                                                            ),
+                                                        border: Border.all(
+                                                          color: Colors.cyan
+                                                              .withOpacity(0.3),
+                                                          width: 1,
+                                                        ),
+                                                      ),
+                                                      child: const Text(
+                                                        'SHORT AUDIO',
+                                                        style: TextStyle(
+                                                          color: Colors.cyan,
+                                                          fontSize: 8,
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                ],
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        if (isManuallyHidden)
+                                          IconButton(
+                                            icon: Icon(
+                                              Icons.visibility_outlined,
+                                              color: _activeAccentColor,
+                                              size: 20,
+                                            ),
+                                            tooltip: 'Unhide track',
+                                            onPressed: () async {
+                                              final prefs =
+                                                  await SharedPreferences.getInstance();
+                                              setState(() {
+                                                _hiddenTrackIds.remove(
+                                                  song.id.toString(),
+                                                );
+                                              });
+                                              await prefs.setStringList(
+                                                'hidden_track_ids',
+                                                _hiddenTrackIds,
+                                              );
+                                              widget.onRescanLibrary();
+                                              setModalState(() {});
+                                              showFlowToast(
+                                                "${song.title} restored to library",
+                                              );
+                                            },
+                                          )
+                                        else
+                                          IconButton(
+                                            icon: const Icon(
+                                              Icons.info_outline_rounded,
+                                              color: Colors.white30,
+                                              size: 20,
+                                            ),
+                                            tooltip:
+                                                'Auto-hidden by Short Audio filter',
+                                            onPressed: () {
+                                              showFlowToast(
+                                                "This track is automatically hidden because it is shorter than 30s.",
+                                              );
+                                            },
+                                          ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  String _getThresholdLabel(int seconds) {
+    if (seconds == -1) return 'End of track';
+    if (seconds == 60) return '1 minute';
+    return '$seconds seconds';
+  }
+
+  void _showThresholdDialog() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF161616),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      isScrollControlled: true,
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 12),
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Center(
+                child: Text(
+                  'Most Played Threshold',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Divider(color: Colors.white10, height: 1),
+              _buildThresholdOption('5 seconds', 5),
+              _buildThresholdOption('10 seconds (Default)', 10),
+              _buildThresholdOption('30 seconds', 30),
+              _buildThresholdOption('1 minute', 60),
+              _buildThresholdOption('End of track', -1),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildThresholdOption(String label, int seconds) {
+    final isSelected = _playCountThreshold == seconds;
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+      title: Text(
+        label,
+        style: TextStyle(
+          color: isSelected ? _activeAccentColor : Colors.white,
+          fontSize: 16,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.w400,
+        ),
+      ),
+      trailing: isSelected
+          ? Icon(Icons.check, color: _activeAccentColor)
+          : null,
+      onTap: () {
+        widget.onSetPlayCountThreshold(seconds);
+        setState(() {
+          _playCountThreshold = seconds;
+        });
+        Navigator.pop(context);
+      },
+    );
+  }
+
+  String _getFontSizeLabel(double scale) {
+    if (scale == 0.85) return 'Small';
+    if (scale == 1.15) return 'Large';
+    if (scale == 1.3) return 'Extra Large';
+    return 'Default';
+  }
+
+  void _showTypographyPreviewDialog() {
+    String tempFont = _activeFont;
+    double tempFontScale = _fontScale;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF161616),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      isScrollControlled: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            TextStyle previewTextStyle({
+              double size = 14,
+              FontWeight weight = FontWeight.normal,
+              Color? color,
+            }) {
+              final baseStyle = TextStyle(
+                fontSize: size * tempFontScale,
+                fontWeight: weight,
+                color: color ?? Colors.white,
+              );
+              if (tempFont == 'Spotify Style') {
+                return GoogleFonts.figtree(textStyle: baseStyle);
+              } else if (tempFont == 'Apple Music Style') {
+                return GoogleFonts.inter(textStyle: baseStyle);
+              } else {
+                return GoogleFonts.plusJakartaSans(textStyle: baseStyle);
+              }
+            }
+
+            return DraggableScrollableSheet(
+              initialChildSize: 0.85,
+              minChildSize: 0.5,
+              maxChildSize: 0.95,
+              expand: false,
+              builder: (context, scrollController) {
+                return SingleChildScrollView(
+                  controller: scrollController,
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: Colors.white24,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      const Center(
+                        child: Text(
+                          'Typography & Font Size',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Live Preview Section Header
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.visibility_outlined,
+                            color: _activeAccentColor,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'Live Preview',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+
+                      // Live Simulated Library Window
+                      Container(
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.08),
+                          ),
+                          gradient: const LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [Color(0xFF0A0A0A), Color(0xFF0A0A0A)],
+                          ),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Simulated Header App Bar
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                                vertical: 8,
+                              ),
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Expanded(
+                                    child: FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      alignment: Alignment.centerLeft,
+                                      child: Text(
+                                        'Library',
+                                        style: previewTextStyle(
+                                          size: 32,
+                                          weight: FontWeight.w800,
+                                        ).copyWith(letterSpacing: -1.0),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Icon(
+                                    Icons.settings,
+                                    color: Colors.white,
+                                    size: 24 * tempFontScale,
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            // Simulated Search Bar & Sort Button Row
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                                vertical: 4,
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Container(
+                                      height: 42,
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF161616),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          const SizedBox(width: 12),
+                                          Icon(
+                                            Icons.search,
+                                            color: Colors.white.withOpacity(
+                                              0.3,
+                                            ),
+                                            size: 20 * tempFontScale,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              'Search songs, artists, or albums...',
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: previewTextStyle(
+                                                size: 13,
+                                                color: Colors.white.withOpacity(
+                                                  0.3,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    width: 42,
+                                    height: 42,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF161616),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: Icon(
+                                      Icons.sort_rounded,
+                                      color: Colors.white.withOpacity(0.5),
+                                      size: 20 * tempFontScale,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            // Simulated Filter Capsules
+                            Padding(
+                              padding: const EdgeInsets.only(
+                                left: 24,
+                                right: 24,
+                                top: 16,
+                                bottom: 12,
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: _buildSimulatedFilterCapsule(
+                                      'Songs',
+                                      true,
+                                      previewTextStyle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: _buildSimulatedFilterCapsule(
+                                      'Playlists',
+                                      false,
+                                      previewTextStyle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: _buildSimulatedFilterCapsule(
+                                      'Artists',
+                                      false,
+                                      previewTextStyle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: _buildSimulatedFilterCapsule(
+                                      'Albums',
+                                      false,
+                                      previewTextStyle,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            const SizedBox(height: 8),
+
+                            // Simulated Song List (Padding left/right 16)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
+                              child: Column(
+                                children: [
+                                  _buildSimulatedSongRow(
+                                    title: 'Alexandra',
+                                    artist: 'Reality Club',
+                                    duration: '4:08',
+                                    textStyleHelper: previewTextStyle,
+                                    tempFontScale: tempFontScale,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  _buildSimulatedSongRow(
+                                    title: 'About You',
+                                    artist: 'The 1975',
+                                    duration: '5:26',
+                                    textStyleHelper: previewTextStyle,
+                                    tempFontScale: tempFontScale,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  _buildSimulatedSongRow(
+                                    title: 'Apocalypse',
+                                    artist: 'Cigarettes After Sex',
+                                    duration: '4:50',
+                                    textStyleHelper: previewTextStyle,
+                                    tempFontScale: tempFontScale,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Typography Selection Row
+                      const Text(
+                        'Font Family',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildFontSelectorChip(
+                              label: 'Plus Jakarta',
+                              value: 'Plus Jakarta Sans',
+                              selectedValue: tempFont,
+                              onTap: () => setModalState(
+                                () => tempFont = 'Plus Jakarta Sans',
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _buildFontSelectorChip(
+                              label: 'Spotify Style',
+                              value: 'Spotify Style',
+                              selectedValue: tempFont,
+                              onTap: () => setModalState(
+                                () => tempFont = 'Spotify Style',
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _buildFontSelectorChip(
+                              label: 'Apple Style',
+                              value: 'Apple Music Style',
+                              selectedValue: tempFont,
+                              onTap: () => setModalState(
+                                () => tempFont = 'Apple Music Style',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Font Size Selection List
+                      const Text(
+                        'Font Size',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      _buildFontSizeSelectorRow(
+                        'Small (85%)',
+                        0.85,
+                        tempFontScale,
+                        (val) {
+                          setModalState(() => tempFontScale = val);
+                        },
+                      ),
+                      _buildFontSizeSelectorRow(
+                        'Default (100%)',
+                        1.0,
+                        tempFontScale,
+                        (val) {
+                          setModalState(() => tempFontScale = val);
+                        },
+                      ),
+                      _buildFontSizeSelectorRow(
+                        'Large (115%)',
+                        1.15,
+                        tempFontScale,
+                        (val) {
+                          setModalState(() => tempFontScale = val);
+                        },
+                      ),
+                      _buildFontSizeSelectorRow(
+                        'Extra Large (130%)',
+                        1.3,
+                        tempFontScale,
+                        (val) {
+                          setModalState(() => tempFontScale = val);
+                        },
+                      ),
+
+                      const SizedBox(height: 32),
+
+                      // Bottom actions Close & Save
+                      Row(
+                        children: [
+                          Expanded(
+                            child: InkWell(
+                              onTap: () => Navigator.pop(context),
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                height: 48,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.06),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.05),
+                                  ),
+                                ),
+                                child: const Center(
+                                  child: Text(
+                                    'Close',
+                                    style: TextStyle(
+                                      color: Colors.white70,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: InkWell(
+                              onTap: () async {
+                                final prefs =
+                                    await SharedPreferences.getInstance();
+                                await prefs.setString('activeFont', tempFont);
+                                await prefs.setDouble(
+                                  'fontScale',
+                                  tempFontScale,
+                                );
+                                widget.onSetFont(tempFont);
+                                widget.onSetFontScale(tempFontScale);
+                                setState(() {
+                                  _activeFont = tempFont;
+                                  _fontScale = tempFontScale;
+                                });
+                                if (context.mounted) {
+                                  Navigator.pop(context);
+                                }
+                                showFlowToast(
+                                  "Typography & size updated successfully!",
+                                );
+                              },
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                height: 48,
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      _activeAccentColor,
+                                      _activeAccentColor.withOpacity(0.8),
+                                    ],
+                                  ),
+                                  borderRadius: BorderRadius.circular(12),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: _activeAccentColor.withOpacity(
+                                        0.3,
+                                      ),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: const Center(
+                                  child: Text(
+                                    'Save',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  String _getThemeAccentLabel(String preset) {
+    switch (preset) {
+      case 'dynamic':
+        return 'Dynamic (Artwork)';
+      case 'spotify':
+        return 'Spotify Green';
+      case 'apple':
+        return 'Apple Red';
+      case 'purple':
+        return 'Deep Purple';
+      case 'tidal':
+        return 'Tidal Cyan';
+      case 'orange':
+        return 'Sunset Orange';
+      case 'sakura':
+        return 'Sakura Pink';
+      case 'gold':
+        return 'Luxury Gold';
+      case 'blue':
+        return 'Sapphire Blue';
+      case 'lime':
+        return 'Electric Lime';
+      default:
+        return 'Spotify Green';
+    }
+  }
+
+  void _showThemeAccentSelectionDialog() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF161616),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      isScrollControlled: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return DraggableScrollableSheet(
+              initialChildSize: 0.65,
+              minChildSize: 0.4,
+              maxChildSize: 0.85,
+              expand: false,
+              builder: (context, scrollController) {
+                final presets = [
+                  {
+                    'id': 'dynamic',
+                    'label': 'Dynamic (Artwork)',
+                    'desc': 'Extract color dynamically from track art',
+                    'color': widget.activeAccentColor,
+                  },
+                  {
+                    'id': 'spotify',
+                    'label': 'Spotify Green',
+                    'desc': 'Classic energizing stream aesthetic',
+                    'color': const Color(0xFF1DB954),
+                  },
+                  {
+                    'id': 'apple',
+                    'label': 'Apple Red',
+                    'desc': 'Premium vibrant music vibe',
+                    'color': const Color(0xFFFC3C44),
+                  },
+                  {
+                    'id': 'purple',
+                    'label': 'Deep Purple',
+                    'desc': 'Trendy dreamlike artistic look',
+                    'color': const Color(0xFF8E2DE2),
+                  },
+                  {
+                    'id': 'tidal',
+                    'label': 'Tidal Cyan',
+                    'desc': 'High-fidelity tech teal',
+                    'color': const Color(0xFF00F2FE),
+                  },
+                  {
+                    'id': 'orange',
+                    'label': 'Sunset Orange',
+                    'desc': 'Warm cozy analog/vinyl feel',
+                    'color': const Color(0xFFFF9233),
+                  },
+                  {
+                    'id': 'sakura',
+                    'label': 'Sakura Pink',
+                    'desc': 'Futuristic sleek cyberpunk vibe',
+                    'color': const Color(0xFFFF2A6D),
+                  },
+                  {
+                    'id': 'gold',
+                    'label': 'Luxury Gold',
+                    'desc': 'Polished warm golden studio feel',
+                    'color': const Color(0xFFDFBA59),
+                  },
+                  {
+                    'id': 'blue',
+                    'label': 'Sapphire Blue',
+                    'desc': 'Premium deep ocean audio look',
+                    'color': const Color(0xFF007AFF),
+                  },
+                  {
+                    'id': 'lime',
+                    'label': 'Electric Lime',
+                    'desc': 'High-energy neon glowing punch',
+                    'color': const Color(0xFFCCFF00),
+                  },
+                ];
+
+                return Column(
+                  children: [
+                    const SizedBox(height: 12),
+                    Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Theme Accent Color',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Personalize the system accent color & player highlights',
+                      style: TextStyle(color: Colors.white54, fontSize: 12),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    const Divider(color: Colors.white10),
+                    Expanded(
+                      child: ListView.builder(
+                        controller: scrollController,
+                        physics: const BouncingScrollPhysics(),
+                        itemCount: presets.length,
+                        itemBuilder: (context, index) {
+                          final p = presets[index];
+                          final id = p['id'] as String;
+                          final isSelected = _selectedThemeAccent == id;
+                          final color = p['color'] as Color;
+
+                          return ListTile(
+                            onTap: () {
+                              setModalState(() {
+                                _selectedThemeAccent = id;
+                              });
+                              setState(() {
+                                _selectedThemeAccent = id;
+                              });
+                              widget.onSetThemeAccent(id);
+                            },
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 4,
+                            ),
+                            leading: Container(
+                              width: 38,
+                              height: 38,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: color.withOpacity(0.15),
+                                border: Border.all(
+                                  color: isSelected ? color : Colors.white10,
+                                  width: isSelected ? 2.5 : 1,
+                                ),
+                              ),
+                              child: Center(
+                                child: Container(
+                                  width: 18,
+                                  height: 18,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    gradient: id == 'dynamic'
+                                        ? const SweepGradient(
+                                            colors: [
+                                              Colors.red,
+                                              Colors.yellow,
+                                              Colors.green,
+                                              Colors.blue,
+                                              Colors.red,
+                                            ],
+                                          )
+                                        : null,
+                                    color: id == 'dynamic' ? null : color,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            title: Text(
+                              p['label'] as String,
+                              style: TextStyle(
+                                color: isSelected
+                                    ? Colors.white
+                                    : Colors.white70,
+                                fontWeight: isSelected
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                              ),
+                            ),
+                            subtitle: Text(
+                              p['desc'] as String,
+                              style: const TextStyle(
+                                color: Colors.white30,
+                                fontSize: 11,
+                              ),
+                            ),
+                            trailing: isSelected
+                                ? Icon(
+                                    Icons.check_circle,
+                                    color: color,
+                                    size: 22,
+                                  )
+                                : null,
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildSimulatedFilterCapsule(
+    String label,
+    bool isSelected,
+    TextStyle Function({double size, FontWeight weight, Color? color})
+    styleHelper,
+  ) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+      decoration: BoxDecoration(
+        color: isSelected ? Colors.white : const Color(0xFF161616),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Center(
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            label,
+            maxLines: 1,
+            style: styleHelper(
+              size: 12,
+              weight: FontWeight.w600,
+              color: isSelected ? Colors.black : Colors.white70,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSimulatedSongRow({
+    required String title,
+    required String artist,
+    required String duration,
+    required TextStyle Function({double size, FontWeight weight, Color? color})
+    textStyleHelper,
+    required double tempFontScale,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: Colors.white.withOpacity(0.05)),
+            ),
+            child: Center(
+              child: Icon(
+                Icons.music_note,
+                color: _activeAccentColor,
+                size: 18,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: textStyleHelper(size: 14, weight: FontWeight.w600),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  artist,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: textStyleHelper(size: 12, color: Colors.white38),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                duration,
+                style: textStyleHelper(size: 12, color: Colors.white38),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                Icons.more_vert,
+                color: Colors.white54,
+                size: 18 * tempFontScale,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFontSelectorChip({
+    required String label,
+    required String value,
+    required String selectedValue,
+    required VoidCallback onTap,
+  }) {
+    final isSelected = selectedValue == value;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? _activeAccentColor.withOpacity(0.1)
+              : Colors.white.withOpacity(0.04),
+          border: Border.all(
+            color: isSelected
+                ? _activeAccentColor
+                : Colors.white.withOpacity(0.05),
+            width: 1.5,
+          ),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              color: isSelected ? _activeAccentColor : Colors.white70,
+              fontSize: 13,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFontSizeSelectorRow(
+    String label,
+    double scale,
+    double currentValue,
+    Function(double) onChanged,
+  ) {
+    final isSelected = currentValue == scale;
+    return ListTile(
+      onTap: () => onChanged(scale),
+      contentPadding: EdgeInsets.zero,
+      title: Text(
+        label,
+        style: TextStyle(
+          color: isSelected
+              ? _activeAccentColor
+              : Colors.white.withOpacity(0.9),
+          fontSize: 14,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.w400,
+        ),
+      ),
+      leading: Container(
+        width: 20,
+        height: 20,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: isSelected ? _activeAccentColor : Colors.white30,
+            width: 2,
+          ),
+        ),
+        child: isSelected
+            ? Center(
+                child: CircleAvatar(
+                  radius: 5,
+                  backgroundColor: _activeAccentColor,
+                ),
+              )
+            : null,
+      ),
+      trailing: isSelected
+          ? Icon(Icons.check_circle, color: _activeAccentColor, size: 18)
+          : null,
+    );
+  }
+
+  String _getPlayerBackgroundStyleLabel(String style) {
+    switch (style) {
+      case 'gradient':
+        return 'Dynamic Gradient';
+      case 'blur':
+        return 'Apple Blurred Cover';
+      case 'amoled':
+        return 'AMOLED Deep Black';
+      case 'custom':
+        return 'Custom Gallery Image';
+      default:
+        return 'Dynamic Gradient';
+    }
+  }
+
+  void _showPlayerBackgroundStyleDialog() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF161616),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      isScrollControlled: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return DraggableScrollableSheet(
+              initialChildSize: 0.55,
+              minChildSize: 0.3,
+              maxChildSize: 0.75,
+              expand: false,
+              builder: (context, scrollController) {
+                final options = [
+                  {
+                    'id': 'gradient',
+                    'label': 'Dynamic Gradient',
+                    'desc':
+                        'Extract color and paint a rich dark linear gradient',
+                  },
+                  {
+                    'id': 'blur',
+                    'label': 'Apple Blurred Cover',
+                    'desc':
+                        'High-fidelity glassmorphism with dynamic cover art blur',
+                  },
+                  {
+                    'id': 'amoled',
+                    'label': 'AMOLED Deep Black',
+                    'desc':
+                        'Solid pure black background for ultimate battery saving',
+                  },
+                  {
+                    'id': 'custom',
+                    'label': 'Custom Gallery Image',
+                    'desc':
+                        'Set a personalized wallpaper background from your photo gallery',
+                  },
+                ];
+
+                return Column(
+                  children: [
+                    const SizedBox(height: 12),
+                    Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Player Background Style',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: _activeFont,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Expanded(
+                      child: ListView.builder(
+                        controller: scrollController,
+                        itemCount: options.length,
+                        itemBuilder: (context, index) {
+                          final opt = options[index];
+                          final id = opt['id'] as String;
+                          final label = opt['label'] as String;
+                          final desc = opt['desc'] as String;
+                          final isSelected = _playerBackgroundStyle == id;
+
+                          return ListTile(
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 4,
+                            ),
+                            onTap: () async {
+                              if (id == 'custom') {
+                                if (_playerCustomBgPath != null &&
+                                    File(_playerCustomBgPath!).existsSync()) {
+                                  final prefs =
+                                      await SharedPreferences.getInstance();
+                                  await prefs.setString(
+                                    'playerBackgroundStyle',
+                                    'custom',
+                                  );
+                                  if (!context.mounted) return;
+                                  setState(() {
+                                    _playerBackgroundStyle = 'custom';
+                                  });
+                                  setModalState(() {
+                                    _playerBackgroundStyle = 'custom';
+                                  });
+                                  widget.onSetPlayerBackgroundStyle('custom');
+                                  showFlowToast(
+                                    'Custom wallpaper background set!',
+                                  );
+                                  Navigator.pop(context);
+                                } else {
+                                  final ImagePicker picker = ImagePicker();
+                                  final XFile? image = await picker.pickImage(
+                                    source: ImageSource.gallery,
+                                  );
+                                  if (image != null) {
+                                    final prefs =
+                                        await SharedPreferences.getInstance();
+                                    await prefs.setString(
+                                      'playerBackgroundStyle',
+                                      'custom',
+                                    );
+                                    await prefs.setString(
+                                      'playerCustomBgPath',
+                                      image.path,
+                                    );
+                                    if (!context.mounted) return;
+                                    setState(() {
+                                      _playerBackgroundStyle = 'custom';
+                                      _playerCustomBgPath = image.path;
+                                    });
+                                    setModalState(() {
+                                      _playerBackgroundStyle = 'custom';
+                                      _playerCustomBgPath = image.path;
+                                    });
+                                    widget.onSetPlayerBackgroundStyle('custom');
+                                    widget.onSetPlayerCustomBgPath(image.path);
+                                    showFlowToast(
+                                      'Custom wallpaper background set!',
+                                    );
+                                    Navigator.pop(context);
+                                  }
+                                }
+                              } else {
+                                final prefs =
+                                    await SharedPreferences.getInstance();
+                                await prefs.setString(
+                                  'playerBackgroundStyle',
+                                  id,
+                                );
+                                if (!context.mounted) return;
+                                setState(() {
+                                  _playerBackgroundStyle = id;
+                                });
+                                setModalState(() {
+                                  _playerBackgroundStyle = id;
+                                });
+                                widget.onSetPlayerBackgroundStyle(id);
+                                showFlowToast('Background style set to $label');
+                                Navigator.pop(context);
+                              }
+                            },
+                            title: Text(
+                              label,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: isSelected
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                                fontFamily: _activeFont,
+                              ),
+                            ),
+                            subtitle: Text(
+                              desc,
+                              style: const TextStyle(
+                                color: Colors.white54,
+                                fontSize: 13,
+                              ),
+                            ),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (id == 'custom' &&
+                                    _playerCustomBgPath != null) ...[
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(4),
+                                    child: Image.file(
+                                      File(_playerCustomBgPath!),
+                                      width: 28,
+                                      height: 28,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                ],
+                                if (isSelected)
+                                  Icon(
+                                    Icons.check_circle,
+                                    color: _activeAccentColor,
+                                  ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  String _getThemeModeLabel(String mode) {
+    switch (mode) {
+      case 'light':
+        return 'Light Mode';
+      case 'custom':
+        return 'Custom Theme';
+      case 'dark':
+      default:
+        return 'Dark Mode';
+    }
+  }
+
+  void _showThemeModeSelectionDialog() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        final isLight = _selectedThemeMode == 'light';
+        final cardColor = isLight ? Colors.white : const Color(0xFF161616);
+        final titleColor = isLight ? const Color(0xFF1A1A1A) : Colors.white;
+
+        return Container(
+          decoration: BoxDecoration(
+            color: cardColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 40,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: isLight
+                      ? Colors.black.withOpacity(0.08)
+                      : Colors.white24,
+                  borderRadius: BorderRadius.circular(2.5),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Select Theme Mode',
+                style: TextStyle(
+                  color: titleColor,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+              _buildThemeModeItem(
+                id: 'dark',
+                title: 'Dark Mode',
+                subtitle: 'Sleek, battery-saving dark backdrop',
+                icon: Icons.dark_mode_outlined,
+              ),
+              _buildThemeModeItem(
+                id: 'light',
+                title: 'Light Mode',
+                subtitle: 'Clean, elegant light gray backdrop',
+                icon: Icons.light_mode_outlined,
+              ),
+              _buildThemeModeItem(
+                id: 'custom',
+                title: 'Custom Theme',
+                subtitle: 'Select solid luxury colors or dynamic artwork tints',
+                icon: Icons.color_lens_outlined,
+              ),
+              const SizedBox(height: 24),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildThemeModeItem({
+    required String id,
+    required String title,
+    required String subtitle,
+    required IconData icon,
+  }) {
+    final isSelected = _selectedThemeMode == id;
+    final isLight = _selectedThemeMode == 'light';
+    final primaryTextColor = isLight ? const Color(0xFF1A1A1A) : Colors.white;
+    final secondaryTextColor = isLight ? Colors.black45 : Colors.white38;
+
+    return ListTile(
+      leading: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: isSelected
+              ? _activeAccentColor.withOpacity(0.1)
+              : (isLight
+                    ? Colors.black.withOpacity(0.04)
+                    : Colors.white.withOpacity(0.05)),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(
+          icon,
+          color: isSelected
+              ? _activeAccentColor
+              : (isLight ? Colors.black54 : Colors.white70),
+        ),
+      ),
+      title: Text(
+        title,
+        style: TextStyle(
+          color: primaryTextColor,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+        ),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: TextStyle(color: secondaryTextColor, fontSize: 12),
+      ),
+      trailing: isSelected
+          ? Icon(Icons.check_circle, color: _activeAccentColor)
+          : null,
+      onTap: () async {
+        Navigator.pop(context);
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('themeMode', id);
+        setState(() {
+          _selectedThemeMode = id;
+        });
+        widget.onSetThemeMode(id);
+      },
+    );
+  }
+
+  Widget _buildStylePill(String id, String label) {
+    final isSelected = _customThemeStyle == id;
+    final isLight = _selectedThemeMode == 'light';
+
+    return GestureDetector(
+      onTap: () async {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('customThemeStyle', id);
+        setState(() {
+          _customThemeStyle = id;
+        });
+        widget.onSetCustomThemeStyle(id);
+        showFlowToast('Theme style set to $label');
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? _activeAccentColor
+              : (isLight
+                    ? Colors.black.withOpacity(0.05)
+                    : Colors.white.withValues(alpha: 0.05)),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected
+                ? _activeAccentColor
+                : (isLight ? Colors.black12 : Colors.white10),
+            width: 1,
+          ),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected
+                ? Colors.white
+                : (isLight ? Colors.black87 : Colors.white70),
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+            fontFamily: _activeFont,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCustomBgOption({
+    required String id,
+    required String name,
+    required Color color,
+  }) {
+    final isSelected = _customThemeBg == id;
+    final isLight = _selectedThemeMode == 'light';
+
+    return GestureDetector(
+      onTap: () async {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('customThemeBg', id);
+        setState(() {
+          _customThemeBg = id;
+        });
+        widget.onSetCustomThemeBg(id);
+
+        if (id == 'custom_image' && _customThemeBgPath == null) {
+          final ImagePicker picker = ImagePicker();
+          final XFile? image = await picker.pickImage(
+            source: ImageSource.gallery,
+          );
+          if (image != null) {
+            await prefs.setString('customThemeBgPath', image.path);
+            setState(() {
+              _customThemeBgPath = image.path;
+            });
+            widget.onSetCustomThemeBgPath(image.path);
+            showFlowToast('Custom theme wallpaper updated!');
+          }
+        }
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeInOut,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? _activeAccentColor.withOpacity(0.15)
+              : (isLight
+                    ? Colors.black.withOpacity(0.04)
+                    : Colors.white.withOpacity(0.05)),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected ? _activeAccentColor : Colors.transparent,
+            width: 1.5,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 16,
+              height: 16,
+              decoration: BoxDecoration(
+                color: id == 'custom_image' && _customThemeBgPath != null
+                    ? null
+                    : color,
+                image:
+                    id == 'custom_image' &&
+                        _customThemeBgPath != null &&
+                        File(_customThemeBgPath!).existsSync()
+                    ? DecorationImage(
+                        image: FileImage(File(_customThemeBgPath!)),
+                        fit: BoxFit.cover,
+                      )
+                    : null,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isLight ? Colors.black26 : Colors.white30,
+                  width: 1,
+                ),
+              ),
+              child: isSelected && id == 'dynamic'
+                  ? const Icon(Icons.star, size: 8, color: Colors.white)
+                  : (id == 'custom_image' && _customThemeBgPath == null
+                        ? const Icon(Icons.add, size: 8, color: Colors.white)
+                        : null),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              name,
+              style: TextStyle(
+                color: isSelected
+                    ? _activeAccentColor
+                    : (isLight ? const Color(0xFF1A1A1A) : Colors.white70),
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                fontSize: 13,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

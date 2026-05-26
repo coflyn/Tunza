@@ -1,10 +1,23 @@
-# Tunza Audio Player
+# Flow Audio Player
 
 ![License](https://img.shields.io/badge/license-GPLv3-blue.svg)
 ![Flutter](https://img.shields.io/badge/Flutter-02569B?logo=flutter&logoColor=white)
-![Platform](https://img.shields.io/badge/platform-Android%20%7C%20iOS-lightgrey)
+![Platform](https://img.shields.io/badge/platform-Android-lightgrey)
 
-Tunza is a modern, feature-rich local audio player built with Flutter. It focuses on providing a premium listening experience with a clean user interface, seamless background playback, and smart track management.
+Flow is a modern, feature-rich local audio player built with Flutter. It focuses on providing a premium listening experience with a clean user interface, seamless background playback, and smart track management.
+
+## Previews
+
+<p align="center">
+  <img src="previews/1.jpeg" width="32%" alt="Preview 1">
+  <img src="previews/2.jpeg" width="32%" alt="Preview 2">
+  <img src="previews/3.jpeg" width="32%" alt="Preview 3">
+</p>
+<p align="center">
+  <img src="previews/4.jpeg" width="32%" alt="Preview 4">
+  <img src="previews/5.jpeg" width="32%" alt="Preview 5">
+  <img src="previews/6.jpeg" width="32%" alt="Preview 6">
+</p>
 
 ## Features
 
@@ -20,7 +33,7 @@ Tunza is a modern, feature-rich local audio player built with Flutter. It focuse
 - **Dynamic Theme Accent Customization**: High-fidelity custom accent preset selector with 9 premium solid presets (Spotify Green, Apple Red, Deep Purple, Tidal Cyan, Sunset Orange, Sakura Pink, Luxury Gold, Sapphire Blue, Electric Lime) or **Dynamic (Artwork)** color matching.
 - **HSL Contrast Safety (Auto-Brightener)**: Real-time mathematical luminance safety interceptor that automatically boosts dark extracted cover art colors into readable pastels/neons, mapping pure black/desaturated covers to a sleek, premium Silver-Grey.
 - **ValueNotifier Real-Time State Sync**: Continuous visual color stream coupling that propagates theme modifications and cover artwork changes instantly across all pushed settings panels, switches, and sliders in real-time.
-- **Interactive Lyrics Engine**: Synced LRC & plain text support with zero truncation. Renders dynamic word-wrapping karaoke streams styled perfectly to Tunza's custom fonts without cutting off text.
+- **Interactive Lyrics Engine**: Synced LRC & plain text support with zero truncation. Renders dynamic word-wrapping karaoke streams styled perfectly to Flow's custom fonts without cutting off text.
 - **Dynamic Sleep Timer**: Automatically stop audio playback with built-in presets (15m, 30m, 60m) or custom inputs, complete with a live counting indicator on the player header.
 - **Precision Audio Transitions**: Custom Crossfade adjustments (0ms to 3000ms) with a 150ms fade-in/fade-out playing transition to avoid pops/crackles.
 - **Auto Regex Cleaner**: An aggressive, native RegExp title cleaner that removes underscores, empty brackets, and cluttered suffixes (like `4K Remastered`, `Official Video`, `Remastered`).
@@ -33,6 +46,12 @@ Tunza is a modern, feature-rich local audio player built with Flutter. It focuse
 
 ## What's New
 
+- **Massive Modular Architecture Refactoring**: The Flow codebase has been completely deconstructed from monolithic "God Objects" into a clean, highly modular structure. The `main.dart` entrypoint was dramatically reduced from over 3,200 lines to under 700 lines by extracting core UI components and heavy audio state management into `lib/ui/main_ui_components.dart` and `lib/logic/main_audio_logic.dart`. Furthermore, massive UI files like `modals_ui.dart` and `settings_screen.dart` were systematically split into specialized, domain-focused modules (Track, Playlist, Utility Modals, and isolated Settings components) using a scalable `part` and `extension` architecture. This guarantees incredible maintainability, lightning-fast IDE indexing, and a pristine separation of concerns without sacrificing state synchronization!
+- **Advanced Metadata & Cover Editor**: Enhanced the Edit Metadata functionality to support custom covers for Albums and Playlists (including Smart Playlists like Most Played). Users can now select custom cover art from their device gallery or pick the cover art of an existing song in their library. Artwork fetched from other songs is extracted at high-resolution (1000px) to prevent pixelation. Furthermore, all dynamic color player backgrounds (`PaletteGenerator`) now instantly update in real-time when the current track or album's cover is changed without needing to close the player. Also refactored the Detail Options modal into a fully scrollable view with secured context-mounted callbacks for flawless interactions.
+- **Draggable Up Next Queue**: Upgraded the "Up Next" queue modal from a static list to an interactive `ReorderableListView`. Users can now intuitively drag and drop tracks to rearrange the upcoming playback order. The logic is deeply integrated with the core audio engine, meaning changes instantly sync with both sequential and shuffled playback modes (`ConcatenatingAudioSource`) without interrupting the currently playing song. The currently playing track is intelligently locked in place to prevent accidental playback disruptions.
+
+## Previous Updates
+
 - **Spotify-Style Detail Views**: Re-engineered the Album, Artist, and Playlist Detail Views to match modern Spotify aesthetics. Features include a left-aligned typography layout, a prominent 260x260 main cover art (up from 220px), and a streamlined action row integrating shuffle and a circular play button without cluttered avatars.
 - **Dynamic 4-Grid Playlist Covers**: Custom and smart playlists now automatically generate a stunning 4-grid cover art collage if the playlist contains tracks from 4 or more distinct albums, mimicking premium music streaming platforms.
 - **Zero-Jank Deferred Grid Loading**: Specifically engineered a `_DeferredGridCover` stateful widget for the 4-grid playlist art. This intercepts and defers the heavy concurrent native image decoding requests until *after* the UI slide animation completes (400ms delay), completely eliminating frame drops and visual flickering when opening large playlists.
@@ -43,7 +62,7 @@ Tunza is a modern, feature-rich local audio player built with Flutter. It focuse
 - **Zero-Lag Swipe Gestures & Flicker-Free Closure**: Completely re-engineered the swipe-to-close physics engine for both the Now Playing Player and all dynamic Detail Views (Albums, Artists, Playlists). By fully replacing expensive `setState` calls with high-performance `ValueNotifier` and `ListenableBuilder` architecture, the layout tree no longer rebuilds during drags. Additionally, `AnimatedSlide` components are now kept permanently mounted in the tree, resolving all visual flickering and frame drops when swiping down.
 - **Immediate Global Back Navigation**: Hardened the system back-button behavior via a robust `PopScope`. Triggering a back navigation now instantly closes the Now Playing player regardless of whether lyrics are active, completely eliminating confusing multi-step exit behaviors.
 - **Advanced Playback Settings**: Added two highly requested user controls in the Settings menu: **"Resume after Call"** (which automatically resumes music after a phone call ends) and **"Play Together with other Apps"** (which dynamically reconfigures the native `AudioSession` to mix audio without pausing when other apps play sound).
-- **Native Audio Interruption Override**: Bypassed the default native ExoPlayer focus-loss behavior within `just_audio`. Tunza now fully controls audio interruptions on the Dart side, ensuring the "Play Together" feature flawlessly mixes audio without being unexpectedly paused by Android's native audio focus manager when other apps play sound.
+- **Native Audio Interruption Override**: Bypassed the default native ExoPlayer focus-loss behavior within `just_audio`. Flow now fully controls audio interruptions on the Dart side, ensuring the "Play Together" feature flawlessly mixes audio without being unexpectedly paused by Android's native audio focus manager when other apps play sound.
 - **Synchronized Hidden Tracks Cache**: Resolved a persistent state desynchronization issue where tracks manually hidden or deleted by the user would temporarily reappear in the 'Recently Added' and 'All Songs' lists upon app restart. The JSON caching mechanism (`cached_tracks_list`) is now instantly re-serialized and persisted to `SharedPreferences` the moment a track is hidden, ensuring a mathematically accurate track count at all times.
 - **Real-Time Dynamic Playlist Caching**: Upgraded the caching engine for smart playlists (Most Played, Last Played, Favourites). The detail views now utilize a dynamic cache key payload that tracks list sizes and play-count sums, guaranteeing that the Most Played tracks instantly update and re-render in real-time the moment a song finishes playing.
 - **Animated Instrumental Wave**: Implemented a dynamic `_WaveDots` custom widget inside the synced lyrics engine. When the engine encounters an empty lyrics line or an instrumental break (e.g., `♪`, `[music]`, `instrumental`), it organically replaces the blank text with a beautiful, 3-dot sine-wave ocean animation. The wave naturally scales down and stops moving when the instrumental segment loses focus.
@@ -60,46 +79,25 @@ Tunza is a modern, feature-rich local audio player built with Flutter. It focuse
 - **Mobile-First Project Optimization**: Purged unused platform compilation directories (`linux`, `macos`, `windows`, `web`) to aggressively clean the repository structure, reduce disk usage, and accelerate IDE indexing, formally cementing the project's laser focus on Android and iOS.
 - **Instant Shuffle Activation**: Engineered a `_refreshAudioSourceWindow` method that hot-swaps the native `ConcatenatingAudioSource`'s prev/next tracks in real-time when the shuffle toggle is pressed. Shuffle now takes effect immediately on the current song instead of waiting until the next track transition.
 - **Search Engine Optimization**: Upgraded the local search functionality by implementing a 300ms debounce timer to prevent UI jank during rapid typing, integrated `.trim()` to safely ignore accidental leading/trailing spaces, and mapped the keyboard to native search actions (`TextInputAction.search`) for an intuitive dismissal experience.
-- **Custom APK Output Naming**: Configured `applicationVariants` in `build.gradle.kts` to rename build outputs to `tunza.apk` (or `tunza-<abi>.apk` for split builds), replacing the default `app-release.apk` naming convention.
+- **Custom APK Output Naming**: Configured `applicationVariants` in `build.gradle.kts` to rename build outputs to `flow.apk` (or `flow-<abi>.apk` for split builds), replacing the default `app-release.apk` naming convention.
 - **Custom Background Pan Controls**: Upgraded the wallpaper customization engine to support fine-grained XY offset alignments (Horizontal and Vertical Pan) via native `Alignment` properties alongside the existing zoom scaling. Users can now pinpoint exact visual focal points for their custom theme and player backgrounds, completely eliminating rigid center-crop limitations.
 
-## Previous Updates
 
-- **Full custom Theme Modes & Wallpaper Engine Integration**:
-  - **Dark, Light & Dynamic custom Overlay**: Fully supports "Dark", "Light", and "Dynamic" background overlay choices for custom wallpapers, making the global background aesthetics fully cohesive.
-  - **Dynamic Theme Overlay Luminance Resolution**: Employs mathematical HSL luminance analysis (`Color.computeLuminance()`) to automatically resolve contrasting text styles, settings cards, action buttons, and icons depending on whether the dynamic artwork is light or dark.
-  - **Isolated Live Mockup Preview Customizer**: Uses a localized `Builder` and private `isMockLight` state to decouple the miniature live mockup card from the parent Settings screen, eliminating visual bleeding and permitting absolute styling isolation during real-time layout testing.
-- **Normalized Library & List Layout & Typography**:
-  - **Font Size Harmonization**: Standardized title typography across core viewports by scaling and unifying the primary Library (Songs) list item titles to **`15`** to perfectly match the elegant design scale of the Artists and Albums views.
-  - **Vertical Spacing Alignment**: Harmonized vertical spacing of Library songs list items by setting `contentPadding` top/bottom to **`4`**, keeping the Songs list first item exactly aligned with Artists and Albums view heights.
-  - **Pixel-Perfect Trailing Alignment**: Removed right padding on both Songs and Playlists tiles and translated trailing widgets by `12` pixels to the right, aligning three-dots visual centers perfectly with Artists/Albums chevrons.
-- **High-Fidelity Detail View Top Bars**:
-  - Redesigned the top header bars inside the Album, Artist, and Playlist Detail Views to 100% align with the beautiful Now Playing header layout. Integrates dynamic `SafeArea` placement, a centered top-level drag handle, `24.0` wide horizontal screen margins, and side-aligned interactive back/options menus.
-- **Ultra-Smooth, Flicker-Free Page Swiping**:
-  - Excluded redundant animation set clear actions during horizontal tab changes, ensuring kept-alive viewports retain their entrance staggered animations persistently without visually refreshing, lagging, or causing visual list flickering.
-- **Dedicated Premium "Song Info" (Track Details) Modal**:
-  - **Clean Separation from Editing**: Developed a dedicated, read-only track info bottom sheet to present audio technical data separately from virtual metadata modification, aligning with professional media player architectures.
-  - **Dynamic Audio Identity Card**: Displays a beautifully framed floating card showing the active track artwork, title, artist name, and album.
-  - **Color-Adaptive Format Badge**: Evaluates file paths on-the-fly to show a beautiful, high-contrast, rounded badge of the file format (e.g., MP3, FLAC, M4A, WAV) styled dynamically using the application's active accent color.
-  - **Asynchronous File Size Resolution**: Computes local file size asynchronously in bytes and formats it into user-friendly `KB` or `MB` readouts.
-  - **Monospace Path Copier**: Integrates a clean, system-wrapped `monospace` path visualizer, complete with a quick copy-to-clipboard button and a premium feedback toast.
-  - **Seamless Context Transitions**: Includes an elegant outlined button inside the modal to jump instantly to the metadata editor panel if modification is desired, preserving back-stack focus.
-- **Full-Scale Flutter Modernization & Zero-Warning Optimization**:
-  - **Deprecated API Refactoring**: Swept the entire codebase—including `lib/ui/modals_ui.dart` and `lib/ui/tabs_ui.dart`—replacing the deprecated `.withOpacity(...)` on colors with the modern, high-precision `.withValues(alpha: ...)` API.
-  - **Perfect Clean Compilation**: Resolved 28 compiler/analyzer issues in one pass, leaving the codebase pristine, compile-ready, and reporting **`No issues found!`** during active static analysis.
-- **Instant & Flicker-Free Tab Jump Navigation**: Upgraded the tab filter pills (Songs, Playlists, Artists, Albums) to use direct `jumpToPage` instant routing and engineered a custom `_KeepAliveWrapper` (`AutomaticKeepAliveClientMixin`) to hold all four viewports persistently in memory. This eliminates all visual refresh flickering, prevents list rebuild lag (0ms switching speed), and perfectly preserves the scroll positions of each tab when navigating back and forth.
-- **Elite Staggered List Entrance Animations**: Crafted a custom, physics-based `_FadeInSlideUp` animation widget using lightweight `TweenAnimationBuilders` and memory-safe `Timers`. Applied staggered delayed fading and slide-up entrance animations (350ms duration with `Curves.easeOutCubic`) to all items in the Library (Songs, Playlists, Artists, Albums tabs) and context-sensitive Detail Views. Items animate smoothly as they mount or scroll into view, delivering a gorgeous, premium fluid feel.
 
 ## Project Structure
 
 The project has been refactored into a highly modular, decoupled architecture using Dart's `part` and `part of` directives, keeping local state synchronization lightweight and seamless:
 
-- **`lib/main.dart`**: Root application entry, boot sequence initialization, local state controller, persistent preferences loading, and storage media query scans.
+- **`lib/main.dart`**: Root application entry, boot sequence initialization, and core Scaffold state container. Now elegantly stripped of massive logic blocks for a clean ~700 line entrypoint.
+- **`lib/logic/main_audio_logic.dart`**: The brain of the application. Houses all complex state mutations, audio streaming integrations, dynamic lyric fetching, crossfade lifecycle management, and playback queue transformations.
+- **`lib/ui/main_ui_components.dart`**: Core skeletal UI renderers extracted from the main tree, including custom headers, empty states, and dynamic playlist grid covers.
 - **`lib/ui/player_ui.dart`**: Fullscreen adaptive music player UI. Houses physics-based swipe-down gestures, sliding mini players, and dynamic palette-based gradients.
 - **`lib/ui/detail_views_ui.dart`**: Dynamic detail overlays for Artists, Albums, and custom/default Playlists.
 - **`lib/ui/tabs_ui.dart`**: Viewport page layouts hosting horizontal swipable tabs (Songs list, Playlist cards, Artist list, Album cards) and the standard search system.
-- **`lib/ui/modals_ui.dart`**: Interactive overlays including track settings bottom sheets, dynamic Sleep Timer lists, cover selection tools, and virtual metadata editing.
-- **`lib/screens/settings_screen.dart`**: A standalone, polished Material 3 settings menu with group card components, sliders, and toggle switches.
+- **`lib/ui/modals_track_ui.dart` / `modals_playlist_ui.dart` / `modals_utility_ui.dart`**: Highly specialized, domain-driven modal architectures for handling track operations, robust playlist CRUD, and utility tools (Sleep Timer, Equalizer, Folder Scans).
+- **`lib/screens/settings_screen.dart` & `settings_modals.dart`**: A standalone, polished Material 3 settings hub entirely decoupled from monolithic implementations, utilizing isolated component builders and dedicated modal controllers.
+- **`lib/services/audio_handler.dart`**: OS-level audio intent interception and background service hooks (`MyAudioHandler`).
+- **`lib/utils/globals.dart`**: Centralized dependency injection for global state `ValueNotifiers`, theme configuration tools, and app-wide Toast notification helpers.
 
 ## Dependencies
 
@@ -119,7 +117,6 @@ The project has been refactored into a highly modular, decoupled architecture us
 ## Build Requirements
 
 - **Android**: Requires `minSdk` 21, `targetSdk` 34 (or higher), and Java 17 for compilation. Note that the project utilizes Flutter's Built-in Kotlin compatibility.
-- **iOS**: Requires iOS 12.0 or higher. Note that Swift Package Manager adoption may be required for certain plugins in future updates.
 
 ## Development Notes
 
