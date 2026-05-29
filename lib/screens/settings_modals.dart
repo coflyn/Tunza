@@ -28,10 +28,10 @@ extension SettingsModals on _SettingsScreenState {
                 ),
               ),
               const SizedBox(height: 16),
-              const Center(
+              Center(
                 child: Text(
-                  'Sleep timer',
-                  style: TextStyle(
+                  FlowStrings.get('sleep_timer_title'),
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -40,14 +40,14 @@ extension SettingsModals on _SettingsScreenState {
               ),
               const SizedBox(height: 16),
               const Divider(color: Colors.white10, height: 1),
-              _buildTimerOption('5 minutes', 5),
-              _buildTimerOption('10 minutes', 10),
-              _buildTimerOption('15 minutes', 15),
-              _buildTimerOption('30 minutes', 30),
-              _buildTimerOption('45 minutes', 45),
-              _buildTimerOption('1 hour', 60),
-              _buildTimerOption('End of track', -1),
-              _buildTimerOption('Turn off', 0),
+              _buildTimerOption('5 ${FlowStrings.get('minutes_format')}', 5),
+              _buildTimerOption('10 ${FlowStrings.get('minutes_format')}', 10),
+              _buildTimerOption('15 ${FlowStrings.get('minutes_format')}', 15),
+              _buildTimerOption('30 ${FlowStrings.get('minutes_format')}', 30),
+              _buildTimerOption('45 ${FlowStrings.get('minutes_format')}', 45),
+              _buildTimerOption(FlowStrings.get('hour_1'), 60),
+              _buildTimerOption(FlowStrings.get('end_of_track_short'), -1),
+              _buildTimerOption(FlowStrings.get('turn_off'), 0),
               const SizedBox(height: 16),
             ],
           ),
@@ -74,52 +74,116 @@ extension SettingsModals on _SettingsScreenState {
     );
   }
 
-  void _showResetConfirmation() {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF1E1E1E),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-          ),
-          title: const Row(
-            children: [
-              Icon(Icons.warning_amber_rounded, color: Colors.redAccent),
-              SizedBox(width: 8),
-              Text('Reset App Data?', style: TextStyle(color: Colors.white)),
-            ],
-          ),
-          content: const Text(
-            'This will permanently delete your custom playlists, favorites, and play statistics.\n\nAudio files on your device will NOT be deleted.',
-            style: TextStyle(color: Colors.white70, height: 1.5),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text(
-                'Cancel',
-                style: TextStyle(color: Colors.white54),
-              ),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                Navigator.pop(context); // close settings
-                widget.onResetData();
-              },
-              child: const Text(
-                'Reset',
-                style: TextStyle(
-                  color: Colors.redAccent,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
+  Future<void> _handleBackup() async {
+    final bool? confirm = await showConfirmationDialog(
+      context,
+      title: FlowStrings.get('confirm_backup'),
+      content: FlowStrings.get('confirm_backup_body'),
+      confirmText: FlowStrings.get('backup'),
+      confirmColor: widget.activeAccentColor,
     );
+    if (confirm != true) return;
+
+    await Permission.storage.request();
+    await Permission.manageExternalStorage.request();
+    try {
+      if (await Permission.storage.isGranted ||
+          await Permission.manageExternalStorage.isGranted) {
+        final prefs = await SharedPreferences.getInstance();
+        final keys = prefs.getKeys();
+        final Map<String, dynamic> prefsMap = {};
+        for (String key in keys) {
+          prefsMap[key] = prefs.get(key);
+        }
+        final String jsonString = jsonEncode(prefsMap);
+
+        final directory = Directory('/storage/emulated/0/Download');
+        if (!await directory.exists()) {
+          await directory.create(recursive: true);
+        }
+        final file = File('${directory.path}/Flow_Backup.json');
+        await file.writeAsString(jsonString);
+
+        if (!context.mounted) return;
+        showFlowToast(FlowStrings.get('backup_success'));
+      } else {
+        if (!context.mounted) return;
+        showFlowToast(FlowStrings.get('permission_denied'));
+      }
+    } catch (e) {
+      if (!context.mounted) return;
+      showFlowToast('${FlowStrings.get('backup_failed')}: $e');
+    }
+  }
+
+  Future<void> _handleRestore() async {
+    final bool? confirm = await showConfirmationDialog(
+      context,
+      title: FlowStrings.get('confirm_restore'),
+      content: FlowStrings.get('confirm_restore_body'),
+      confirmText: FlowStrings.get('restore'),
+      confirmColor: widget.activeAccentColor,
+    );
+    if (confirm != true) return;
+
+    await Permission.storage.request();
+    await Permission.manageExternalStorage.request();
+    try {
+      if (await Permission.storage.isGranted ||
+          await Permission.manageExternalStorage.isGranted) {
+        final directory = Directory('/storage/emulated/0/Download');
+        final file = File('${directory.path}/Flow_Backup.json');
+
+        if (await file.exists()) {
+          final String jsonString = await file.readAsString();
+          final Map<String, dynamic> prefsMap = jsonDecode(jsonString);
+
+          final prefs = await SharedPreferences.getInstance();
+          for (String key in prefsMap.keys) {
+            final value = prefsMap[key];
+            if (value is String) {
+              await prefs.setString(key, value);
+            } else if (value is int) {
+              await prefs.setInt(key, value);
+            } else if (value is double) {
+              await prefs.setDouble(key, value);
+            } else if (value is bool) {
+              await prefs.setBool(key, value);
+            } else if (value is List<dynamic>) {
+              await prefs.setStringList(key, List<String>.from(value));
+            }
+          }
+
+          if (!context.mounted) return;
+          showFlowToast(FlowStrings.get('restore_success'));
+          widget.onRescanLibrary();
+        } else {
+          if (!context.mounted) return;
+          showFlowToast(FlowStrings.get('no_backup_found'));
+        }
+      } else {
+        if (!context.mounted) return;
+        showFlowToast(FlowStrings.get('permission_denied'));
+      }
+    } catch (e) {
+      if (!context.mounted) return;
+      showFlowToast('${FlowStrings.get('restore_failed')}: $e');
+    }
+  }
+
+  Future<void> _showResetConfirmation() async {
+    final bool? confirm = await showConfirmationDialog(
+      context,
+      title: FlowStrings.get('reset_confirm_title'),
+      content: FlowStrings.get('reset_confirm_body'),
+      confirmText: FlowStrings.get('reset'),
+    );
+    if (confirm == true) {
+      if (mounted) {
+        Navigator.pop(context); // close settings
+      }
+      widget.onResetData();
+    }
   }
 
   Future<void> _showHiddenTracksSheet(BuildContext context) {
@@ -189,16 +253,16 @@ extension SettingsModals on _SettingsScreenState {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
-                            'Hidden & Filtered Tracks',
-                            style: TextStyle(
+                          Text(
+                            FlowStrings.get('hidden_filtered_tracks_title'),
+                            style: const TextStyle(
                               color: Colors.white,
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
                           Text(
-                            '${displaySongs.length} tracks',
+                            '${displaySongs.length}${FlowStrings.get('tracks_count_suffix')}',
                             style: TextStyle(
                               color: Colors.white.withOpacity(0.4),
                               fontSize: 13,
@@ -208,7 +272,7 @@ extension SettingsModals on _SettingsScreenState {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Manage tracks that are manually hidden or automatically filtered out by your settings.',
+                        FlowStrings.get('hidden_tracks_desc'),
                         style: TextStyle(
                           color: Colors.white.withOpacity(0.5),
                           fontSize: 12,
@@ -219,7 +283,7 @@ extension SettingsModals on _SettingsScreenState {
                         child: displaySongs.isEmpty
                             ? Center(
                                 child: Text(
-                                  'No hidden tracks found',
+                                  FlowStrings.get('no_hidden_tracks'),
                                   style: TextStyle(
                                     color: Colors.white.withOpacity(0.3),
                                     fontSize: 14,
@@ -269,8 +333,13 @@ extension SettingsModals on _SettingsScreenState {
                                                 children: [
                                                   Expanded(
                                                     child: Text(
-                                                      song.artist ??
-                                                          'Unknown Artist',
+                                                      (song.artist == null ||
+                                                              song.artist ==
+                                                                  '<unknown>')
+                                                          ? FlowStrings.get(
+                                                              'unknown_artist',
+                                                            )
+                                                          : song.artist!,
                                                       maxLines: 1,
                                                       overflow:
                                                           TextOverflow.ellipsis,
@@ -302,9 +371,11 @@ extension SettingsModals on _SettingsScreenState {
                                                           width: 1,
                                                         ),
                                                       ),
-                                                      child: const Text(
-                                                        'HIDDEN',
-                                                        style: TextStyle(
+                                                      child: Text(
+                                                        FlowStrings.get(
+                                                          'badge_hidden',
+                                                        ),
+                                                        style: const TextStyle(
                                                           color: Colors.orange,
                                                           fontSize: 8,
                                                           fontWeight:
@@ -332,9 +403,11 @@ extension SettingsModals on _SettingsScreenState {
                                                           width: 1,
                                                         ),
                                                       ),
-                                                      child: const Text(
-                                                        'SHORT AUDIO',
-                                                        style: TextStyle(
+                                                      child: Text(
+                                                        FlowStrings.get(
+                                                          'badge_short_audio',
+                                                        ),
+                                                        style: const TextStyle(
                                                           color: Colors.cyan,
                                                           fontSize: 8,
                                                           fontWeight:
@@ -355,7 +428,9 @@ extension SettingsModals on _SettingsScreenState {
                                               color: _activeAccentColor,
                                               size: 20,
                                             ),
-                                            tooltip: 'Unhide track',
+                                            tooltip: FlowStrings.get(
+                                              'unhide_track',
+                                            ),
                                             onPressed: () async {
                                               final prefs =
                                                   await SharedPreferences.getInstance();
@@ -382,11 +457,14 @@ extension SettingsModals on _SettingsScreenState {
                                               color: Colors.white30,
                                               size: 20,
                                             ),
-                                            tooltip:
-                                                'Auto-hidden by Short Audio filter',
+                                            tooltip: FlowStrings.get(
+                                              'auto_hidden_tooltip',
+                                            ),
                                             onPressed: () {
                                               showFlowToast(
-                                                "This track is automatically hidden because it is shorter than 30s.",
+                                                FlowStrings.get(
+                                                  'auto_hidden_toast',
+                                                ),
                                               );
                                             },
                                           ),
@@ -408,9 +486,9 @@ extension SettingsModals on _SettingsScreenState {
   }
 
   String _getThresholdLabel(int seconds) {
-    if (seconds == -1) return 'End of track';
-    if (seconds == 60) return '1 minute';
-    return '$seconds seconds';
+    if (seconds == -1) return FlowStrings.get('end_of_track_short');
+    if (seconds == 60) return FlowStrings.get('minute_1');
+    return '$seconds ${FlowStrings.get('seconds_format')}';
   }
 
   void _showThresholdDialog() {
@@ -438,10 +516,10 @@ extension SettingsModals on _SettingsScreenState {
                 ),
               ),
               const SizedBox(height: 16),
-              const Center(
+              Center(
                 child: Text(
-                  'Most Played Threshold',
-                  style: TextStyle(
+                  FlowStrings.get('most_played_threshold_title'),
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -450,11 +528,20 @@ extension SettingsModals on _SettingsScreenState {
               ),
               const SizedBox(height: 16),
               const Divider(color: Colors.white10, height: 1),
-              _buildThresholdOption('5 seconds', 5),
-              _buildThresholdOption('10 seconds (Default)', 10),
-              _buildThresholdOption('30 seconds', 30),
-              _buildThresholdOption('1 minute', 60),
-              _buildThresholdOption('End of track', -1),
+              _buildThresholdOption(
+                '5 ${FlowStrings.get('seconds_format')}',
+                5,
+              ),
+              _buildThresholdOption(
+                '10 ${FlowStrings.get('seconds_default_format')}',
+                10,
+              ),
+              _buildThresholdOption(
+                '30 ${FlowStrings.get('seconds_format')}',
+                30,
+              ),
+              _buildThresholdOption(FlowStrings.get('minute_1'), 60),
+              _buildThresholdOption(FlowStrings.get('end_of_track_short'), -1),
               const SizedBox(height: 16),
             ],
           ),
@@ -489,10 +576,10 @@ extension SettingsModals on _SettingsScreenState {
   }
 
   String _getFontSizeLabel(double scale) {
-    if (scale == 0.85) return 'Small';
-    if (scale == 1.15) return 'Large';
-    if (scale == 1.3) return 'Extra Large';
-    return 'Default';
+    if (scale == 0.85) return FlowStrings.get('size_small');
+    if (scale == 1.15) return FlowStrings.get('size_large');
+    if (scale == 1.3) return FlowStrings.get('size_extra_large');
+    return FlowStrings.get('size_default');
   }
 
   void _showTypographyPreviewDialog() {
@@ -555,10 +642,10 @@ extension SettingsModals on _SettingsScreenState {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      const Center(
+                      Center(
                         child: Text(
-                          'Typography & Font Size',
-                          style: TextStyle(
+                          FlowStrings.get('typography_font_size'),
+                          style: const TextStyle(
                             color: Colors.white,
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
@@ -576,9 +663,9 @@ extension SettingsModals on _SettingsScreenState {
                             size: 18,
                           ),
                           const SizedBox(width: 8),
-                          const Text(
-                            'Live Preview',
-                            style: TextStyle(
+                          Text(
+                            FlowStrings.get('live_preview'),
+                            style: const TextStyle(
                               color: Colors.white70,
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
@@ -622,7 +709,7 @@ extension SettingsModals on _SettingsScreenState {
                                       fit: BoxFit.scaleDown,
                                       alignment: Alignment.centerLeft,
                                       child: Text(
-                                        'Library',
+                                        FlowStrings.get('library'),
                                         style: previewTextStyle(
                                           size: 32,
                                           weight: FontWeight.w800,
@@ -668,7 +755,7 @@ extension SettingsModals on _SettingsScreenState {
                                           const SizedBox(width: 8),
                                           Expanded(
                                             child: Text(
-                                              'Search songs, artists, or albums...',
+                                              FlowStrings.get('search_songs'),
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
                                               style: previewTextStyle(
@@ -715,7 +802,7 @@ extension SettingsModals on _SettingsScreenState {
                                 children: [
                                   Expanded(
                                     child: _buildSimulatedFilterCapsule(
-                                      'Songs',
+                                      FlowStrings.get('songs_title'),
                                       true,
                                       previewTextStyle,
                                     ),
@@ -723,7 +810,7 @@ extension SettingsModals on _SettingsScreenState {
                                   const SizedBox(width: 8),
                                   Expanded(
                                     child: _buildSimulatedFilterCapsule(
-                                      'Playlists',
+                                      FlowStrings.get('playlists'),
                                       false,
                                       previewTextStyle,
                                     ),
@@ -731,7 +818,7 @@ extension SettingsModals on _SettingsScreenState {
                                   const SizedBox(width: 8),
                                   Expanded(
                                     child: _buildSimulatedFilterCapsule(
-                                      'Artists',
+                                      FlowStrings.get('artists'),
                                       false,
                                       previewTextStyle,
                                     ),
@@ -739,7 +826,7 @@ extension SettingsModals on _SettingsScreenState {
                                   const SizedBox(width: 8),
                                   Expanded(
                                     child: _buildSimulatedFilterCapsule(
-                                      'Albums',
+                                      FlowStrings.get('albums'),
                                       false,
                                       previewTextStyle,
                                     ),
@@ -789,9 +876,9 @@ extension SettingsModals on _SettingsScreenState {
                       const SizedBox(height: 24),
 
                       // Typography Selection Row
-                      const Text(
-                        'Font Family',
-                        style: TextStyle(
+                      Text(
+                        FlowStrings.get('font_family'),
+                        style: const TextStyle(
                           color: Colors.white70,
                           fontSize: 13,
                           fontWeight: FontWeight.bold,
@@ -837,9 +924,9 @@ extension SettingsModals on _SettingsScreenState {
                       const SizedBox(height: 24),
 
                       // Font Size Selection List
-                      const Text(
-                        'Font Size',
-                        style: TextStyle(
+                      Text(
+                        FlowStrings.get('font_size'),
+                        style: const TextStyle(
                           color: Colors.white70,
                           fontSize: 13,
                           fontWeight: FontWeight.bold,
@@ -847,7 +934,7 @@ extension SettingsModals on _SettingsScreenState {
                       ),
                       const SizedBox(height: 10),
                       _buildFontSizeSelectorRow(
-                        'Small (85%)',
+                        '${FlowStrings.get('size_small')} (85%)',
                         0.85,
                         tempFontScale,
                         (val) {
@@ -855,7 +942,7 @@ extension SettingsModals on _SettingsScreenState {
                         },
                       ),
                       _buildFontSizeSelectorRow(
-                        'Default (100%)',
+                        '${FlowStrings.get('size_default')} (100%)',
                         1.0,
                         tempFontScale,
                         (val) {
@@ -863,7 +950,7 @@ extension SettingsModals on _SettingsScreenState {
                         },
                       ),
                       _buildFontSizeSelectorRow(
-                        'Large (115%)',
+                        '${FlowStrings.get('size_large')} (115%)',
                         1.15,
                         tempFontScale,
                         (val) {
@@ -871,7 +958,7 @@ extension SettingsModals on _SettingsScreenState {
                         },
                       ),
                       _buildFontSizeSelectorRow(
-                        'Extra Large (130%)',
+                        '${FlowStrings.get('size_extra_large')} (130%)',
                         1.3,
                         tempFontScale,
                         (val) {
@@ -897,9 +984,9 @@ extension SettingsModals on _SettingsScreenState {
                                     color: Colors.white.withOpacity(0.05),
                                   ),
                                 ),
-                                child: const Center(
+                                child: Center(
                                   child: Text(
-                                    'Close',
+                                    FlowStrings.get('close'),
                                     style: TextStyle(
                                       color: Colors.white70,
                                       fontWeight: FontWeight.bold,
@@ -954,9 +1041,9 @@ extension SettingsModals on _SettingsScreenState {
                                     ),
                                   ],
                                 ),
-                                child: const Center(
+                                child: Center(
                                   child: Text(
-                                    'Save',
+                                    FlowStrings.get('save'),
                                     style: TextStyle(
                                       color: Colors.white,
                                       fontWeight: FontWeight.bold,
@@ -983,27 +1070,27 @@ extension SettingsModals on _SettingsScreenState {
   String _getThemeAccentLabel(String preset) {
     switch (preset) {
       case 'dynamic':
-        return 'Dynamic (Artwork)';
+        return FlowStrings.get('dynamic_artwork');
       case 'spotify':
-        return 'Spotify Green';
+        return FlowStrings.get('accent_spotify');
       case 'apple':
-        return 'Apple Red';
+        return FlowStrings.get('accent_apple');
       case 'purple':
-        return 'Deep Purple';
+        return FlowStrings.get('accent_purple');
       case 'tidal':
-        return 'Tidal Cyan';
+        return FlowStrings.get('accent_tidal');
       case 'orange':
-        return 'Sunset Orange';
+        return FlowStrings.get('accent_orange');
       case 'sakura':
-        return 'Sakura Pink';
+        return FlowStrings.get('accent_sakura');
       case 'gold':
-        return 'Luxury Gold';
+        return FlowStrings.get('accent_gold');
       case 'blue':
-        return 'Sapphire Blue';
+        return FlowStrings.get('accent_blue');
       case 'lime':
-        return 'Electric Lime';
+        return FlowStrings.get('accent_lime');
       default:
-        return 'Spotify Green';
+        return FlowStrings.get('accent_spotify');
     }
   }
 
@@ -1027,62 +1114,62 @@ extension SettingsModals on _SettingsScreenState {
                 final presets = [
                   {
                     'id': 'dynamic',
-                    'label': 'Dynamic (Artwork)',
-                    'desc': 'Extract color dynamically from track art',
+                    'label': FlowStrings.get('dynamic_artwork'),
+                    'desc': FlowStrings.get('accent_desc_dynamic'),
                     'color': widget.activeAccentColor,
                   },
                   {
                     'id': 'spotify',
-                    'label': 'Spotify Green',
-                    'desc': 'Classic energizing stream aesthetic',
+                    'label': FlowStrings.get('accent_spotify'),
+                    'desc': FlowStrings.get('accent_desc_spotify'),
                     'color': const Color(0xFF1DB954),
                   },
                   {
                     'id': 'apple',
-                    'label': 'Apple Red',
-                    'desc': 'Premium vibrant music vibe',
+                    'label': FlowStrings.get('accent_apple'),
+                    'desc': FlowStrings.get('accent_desc_apple'),
                     'color': const Color(0xFFFC3C44),
                   },
                   {
                     'id': 'purple',
-                    'label': 'Deep Purple',
-                    'desc': 'Trendy dreamlike artistic look',
+                    'label': FlowStrings.get('accent_purple'),
+                    'desc': FlowStrings.get('accent_desc_purple'),
                     'color': const Color(0xFF8E2DE2),
                   },
                   {
                     'id': 'tidal',
-                    'label': 'Tidal Cyan',
-                    'desc': 'High-fidelity tech teal',
+                    'label': FlowStrings.get('accent_tidal'),
+                    'desc': FlowStrings.get('accent_desc_tidal'),
                     'color': const Color(0xFF00F2FE),
                   },
                   {
                     'id': 'orange',
-                    'label': 'Sunset Orange',
-                    'desc': 'Warm cozy analog/vinyl feel',
+                    'label': FlowStrings.get('accent_orange'),
+                    'desc': FlowStrings.get('accent_desc_orange'),
                     'color': const Color(0xFFFF9233),
                   },
                   {
                     'id': 'sakura',
-                    'label': 'Sakura Pink',
-                    'desc': 'Futuristic sleek cyberpunk vibe',
+                    'label': FlowStrings.get('accent_sakura'),
+                    'desc': FlowStrings.get('accent_desc_sakura'),
                     'color': const Color(0xFFFF2A6D),
                   },
                   {
                     'id': 'gold',
-                    'label': 'Luxury Gold',
-                    'desc': 'Polished warm golden studio feel',
+                    'label': FlowStrings.get('accent_gold'),
+                    'desc': FlowStrings.get('accent_desc_gold'),
                     'color': const Color(0xFFDFBA59),
                   },
                   {
                     'id': 'blue',
-                    'label': 'Sapphire Blue',
-                    'desc': 'Premium deep ocean audio look',
+                    'label': FlowStrings.get('accent_blue'),
+                    'desc': FlowStrings.get('accent_desc_blue'),
                     'color': const Color(0xFF007AFF),
                   },
                   {
                     'id': 'lime',
-                    'label': 'Electric Lime',
-                    'desc': 'High-energy neon glowing punch',
+                    'label': FlowStrings.get('accent_lime'),
+                    'desc': FlowStrings.get('accent_desc_lime'),
                     'color': const Color(0xFFCCFF00),
                   },
                 ];
@@ -1099,18 +1186,21 @@ extension SettingsModals on _SettingsScreenState {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    const Text(
-                      'Theme Accent Color',
-                      style: TextStyle(
+                    Text(
+                      FlowStrings.get('theme_accent_color'),
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                     const SizedBox(height: 8),
-                    const Text(
-                      'Personalize the system accent color & player highlights',
-                      style: TextStyle(color: Colors.white54, fontSize: 12),
+                    Text(
+                      FlowStrings.get('accent_dialog_subtitle'),
+                      style: const TextStyle(
+                        color: Colors.white54,
+                        fontSize: 12,
+                      ),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 16),
@@ -1397,15 +1487,15 @@ extension SettingsModals on _SettingsScreenState {
   String _getPlayerBackgroundStyleLabel(String style) {
     switch (style) {
       case 'gradient':
-        return 'Dynamic Gradient';
+        return FlowStrings.get('gradient_dynamic');
       case 'blur':
-        return 'Apple Blurred Cover';
+        return FlowStrings.get('blurred_cover');
       case 'amoled':
-        return 'AMOLED Deep Black';
+        return FlowStrings.get('amoled_black');
       case 'custom':
-        return 'Custom Gallery Image';
+        return FlowStrings.get('custom_image');
       default:
-        return 'Dynamic Gradient';
+        return FlowStrings.get('gradient_dynamic');
     }
   }
 
@@ -1429,27 +1519,23 @@ extension SettingsModals on _SettingsScreenState {
                 final options = [
                   {
                     'id': 'gradient',
-                    'label': 'Dynamic Gradient',
-                    'desc':
-                        'Extract color and paint a rich dark linear gradient',
+                    'label': FlowStrings.get('gradient_dynamic'),
+                    'desc': FlowStrings.get('player_bg_desc_gradient'),
                   },
                   {
                     'id': 'blur',
-                    'label': 'Apple Blurred Cover',
-                    'desc':
-                        'High-fidelity glassmorphism with dynamic cover art blur',
+                    'label': FlowStrings.get('blurred_cover'),
+                    'desc': FlowStrings.get('player_bg_desc_blur'),
                   },
                   {
                     'id': 'amoled',
-                    'label': 'AMOLED Deep Black',
-                    'desc':
-                        'Solid pure black background for ultimate battery saving',
+                    'label': FlowStrings.get('amoled_black'),
+                    'desc': FlowStrings.get('player_bg_desc_amoled'),
                   },
                   {
                     'id': 'custom',
-                    'label': 'Custom Gallery Image',
-                    'desc':
-                        'Set a personalized wallpaper background from your photo gallery',
+                    'label': FlowStrings.get('custom_image'),
+                    'desc': FlowStrings.get('player_bg_desc_custom'),
                   },
                 ];
 
@@ -1466,7 +1552,7 @@ extension SettingsModals on _SettingsScreenState {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'Player Background Style',
+                      FlowStrings.get('player_background'),
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
@@ -1561,7 +1647,9 @@ extension SettingsModals on _SettingsScreenState {
                                   _playerBackgroundStyle = id;
                                 });
                                 widget.onSetPlayerBackgroundStyle(id);
-                                showFlowToast('Background style set to $label');
+                                showFlowToast(
+                                  '${FlowStrings.get('toast_bg_style_set')} $label',
+                                );
                                 Navigator.pop(context);
                               }
                             },
@@ -1622,12 +1710,12 @@ extension SettingsModals on _SettingsScreenState {
   String _getThemeModeLabel(String mode) {
     switch (mode) {
       case 'light':
-        return 'Light Mode';
+        return FlowStrings.get('light_mode');
       case 'custom':
-        return 'Custom Theme';
+        return FlowStrings.get('custom_theme');
       case 'dark':
       default:
-        return 'Dark Mode';
+        return FlowStrings.get('dark_mode');
     }
   }
 
@@ -1661,7 +1749,7 @@ extension SettingsModals on _SettingsScreenState {
               ),
               const SizedBox(height: 16),
               Text(
-                'Select Theme Mode',
+                FlowStrings.get('theme_mode'),
                 style: TextStyle(
                   color: titleColor,
                   fontSize: 18,
@@ -1671,20 +1759,20 @@ extension SettingsModals on _SettingsScreenState {
               const SizedBox(height: 16),
               _buildThemeModeItem(
                 id: 'dark',
-                title: 'Dark Mode',
-                subtitle: 'Sleek, battery-saving dark backdrop',
+                title: FlowStrings.get('dark_mode'),
+                subtitle: FlowStrings.get('theme_mode_desc_dark'),
                 icon: Icons.dark_mode_outlined,
               ),
               _buildThemeModeItem(
                 id: 'light',
-                title: 'Light Mode',
-                subtitle: 'Clean, elegant light gray backdrop',
+                title: FlowStrings.get('light_mode'),
+                subtitle: FlowStrings.get('theme_mode_desc_light'),
                 icon: Icons.light_mode_outlined,
               ),
               _buildThemeModeItem(
                 id: 'custom',
-                title: 'Custom Theme',
-                subtitle: 'Select solid luxury colors or dynamic artwork tints',
+                title: FlowStrings.get('custom_theme'),
+                subtitle: FlowStrings.get('theme_mode_desc_custom'),
                 icon: Icons.color_lens_outlined,
               ),
               const SizedBox(height: 24),
@@ -1763,7 +1851,7 @@ extension SettingsModals on _SettingsScreenState {
           _customThemeStyle = id;
         });
         widget.onSetCustomThemeStyle(id);
-        showFlowToast('Theme style set to $label');
+        showFlowToast('${FlowStrings.get('toast_theme_style_set')} $label');
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
@@ -1826,7 +1914,7 @@ extension SettingsModals on _SettingsScreenState {
               _customThemeBgPath = image.path;
             });
             widget.onSetCustomThemeBgPath(image.path);
-            showFlowToast('Custom theme wallpaper updated!');
+            showFlowToast(FlowStrings.get('custom_theme_wallpaper_updated'));
           }
         }
       },
@@ -1891,6 +1979,85 @@ extension SettingsModals on _SettingsScreenState {
           ],
         ),
       ),
+    );
+  }
+
+  void _showLanguageSelectionDialog() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF161616),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      isScrollControlled: true,
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 12),
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Center(
+                child: Text(
+                  FlowStrings.get('language'),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Divider(color: Colors.white10, height: 1),
+              _buildLanguageOption('English', 'en', '🇺🇸'),
+              _buildLanguageOption('Indonesia', 'id', '🇮🇩'),
+              _buildLanguageOption('日本語', 'ja', '🇯🇵'),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildLanguageOption(String label, String langCode, String flag) {
+    final isSelected = _language == langCode;
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+      leading: Text(flag, style: const TextStyle(fontSize: 24)),
+      title: Text(
+        label,
+        style: TextStyle(
+          color: isSelected ? _activeAccentColor : Colors.white,
+          fontSize: 16,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.w400,
+        ),
+      ),
+      trailing: isSelected
+          ? Icon(Icons.check, color: _activeAccentColor)
+          : null,
+      onTap: () async {
+        final nav = Navigator.of(context);
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('language', langCode);
+        languageNotifier.value = langCode;
+        setState(() {
+          _language = langCode;
+        });
+        nav.pop();
+        // Force rebuild settings screen to apply new language
+        setState(() {});
+      },
     );
   }
 }

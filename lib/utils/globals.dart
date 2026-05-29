@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:audio_service/audio_service.dart';
 
+import 'strings.dart';
+export 'strings.dart';
+
 bool isBackgroundInitialized = false;
 String? backgroundInitError;
 late AudioHandler audioHandler;
@@ -47,6 +50,71 @@ void showFlowToast(String msg, {bool isLong = false}) {
     backgroundColor: const Color(0xFF1E1E1E),
     textColor: Colors.white,
     fontSize: 14.0,
+  );
+}
+
+Future<bool?> showConfirmationDialog(
+  BuildContext context, {
+  required String title,
+  required String content,
+  String? confirmText,
+  String? cancelText,
+  Color confirmColor = Colors.redAccent,
+}) {
+  final isLight = isAppLight;
+  return showDialog<bool>(
+    context: context,
+    builder: (context) {
+      return AlertDialog(
+        backgroundColor: isLight
+            ? const Color(0xFFF0F0F3)
+            : const Color(0xFF1E1E1E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: confirmColor),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  color: isLight ? const Color(0xFF1A1A1A) : Colors.white,
+                  fontSize: 18,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          content,
+          style: TextStyle(
+            color: isLight ? Colors.black87 : Colors.white70,
+            height: 1.5,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(
+              cancelText ?? FlowStrings.get('cancel'),
+              style: TextStyle(
+                color: isLight ? Colors.black54 : Colors.white54,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(
+              confirmText ?? 'Confirm',
+              style: TextStyle(
+                color: confirmColor,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      );
+    },
   );
 }
 

@@ -10,9 +10,9 @@ extension _DetailViewsUI on _MainScreenState {
     String? type = _selectedPlaylistDetail != null
         ? 'Playlist'
         : _selectedArtistDetail != null
-        ? 'Artist'
+        ? FlowStrings.get('artist')
         : _selectedAlbumDetail != null
-        ? 'Album'
+        ? FlowStrings.get('album')
         : null;
 
     if (baseName == null || type == null) {
@@ -20,11 +20,11 @@ extension _DetailViewsUI on _MainScreenState {
     }
 
     String dynamicKeyPart = '';
-    if (baseName == 'Favourites') {
+    if (baseName == FlowStrings.get('favourites')) {
       dynamicKeyPart = _favoriteTrackIds.length.toString();
-    } else if (baseName == 'Last Played') {
+    } else if (baseName == FlowStrings.get('last_played')) {
       dynamicKeyPart = _lastPlayedTrackIds.length.toString();
-    } else if (baseName == 'Most Played') {
+    } else if (baseName == FlowStrings.get('most_played')) {
       dynamicKeyPart = _playCounts.values
           .fold<int>(0, (a, b) => a + b)
           .toString();
@@ -32,27 +32,32 @@ extension _DetailViewsUI on _MainScreenState {
       dynamicKeyPart = _userPlaylists[baseName]?.length.toString() ?? '0';
     }
 
-    String currentKey = "${baseName}_${_searchQuery}_${type}_$dynamicKeyPart";
+    String baseKey = "${baseName}_${_searchQuery}_${type}_$dynamicKeyPart";
+    String currentKey = "${baseKey}_${dominantColorNotifier.value?.toARGB32()}";
 
     if (_cachedDetailKey != currentKey ||
         _cachedDetailSongs == null ||
         _cachedDetailImage == null) {
       _cachedDetailKey = currentKey;
-      _animatedDetailTrackIds.clear();
-      if (_detailScrollController.hasClients) {
-        _detailScrollController.jumpTo(0);
+
+      if (_cachedDetailBaseKey != baseKey) {
+        _cachedDetailBaseKey = baseKey;
+
+        if (_detailScrollController.hasClients) {
+          _detailScrollController.jumpTo(0);
+        }
       }
       List<Track> pSongs = [];
       Widget? imageWidget;
 
       if (type == 'Playlist') {
-        if (baseName == 'Favourites') {
+        if (baseName == FlowStrings.get('favourites')) {
           pSongs = _allTracks
               .where((t) => _favoriteTrackIds.contains(t.id))
               .toList();
-        } else if (baseName == 'Recently Added') {
+        } else if (baseName == FlowStrings.get('recently_added')) {
           pSongs = List.from(_allTracks);
-        } else if (baseName == 'Last Played') {
+        } else if (baseName == FlowStrings.get('last_played')) {
           pSongs = _lastPlayedTrackIds
               .map(
                 (id) => _allTracks.firstWhere(
@@ -62,7 +67,7 @@ extension _DetailViewsUI on _MainScreenState {
               )
               .where((t) => _lastPlayedTrackIds.contains(t.id))
               .toList();
-        } else if (baseName == 'Most Played') {
+        } else if (baseName == FlowStrings.get('most_played')) {
           pSongs = List.from(_allTracks);
           pSongs.sort(
             (a, b) =>
@@ -90,16 +95,16 @@ extension _DetailViewsUI on _MainScreenState {
         } else {
           Color color = Colors.grey;
           IconData icon = Icons.queue_music;
-          if (baseName == 'Favourites') {
+          if (baseName == FlowStrings.get('favourites')) {
             color = const Color(0xFFE91E63);
             icon = Icons.favorite;
-          } else if (baseName == 'Recently Added') {
+          } else if (baseName == FlowStrings.get('recently_added')) {
             color = const Color(0xFF2196F3);
             icon = Icons.new_releases;
-          } else if (baseName == 'Last Played') {
+          } else if (baseName == FlowStrings.get('last_played')) {
             color = const Color(0xFFFF9800);
             icon = Icons.history;
-          } else if (baseName == 'Most Played') {
+          } else if (baseName == FlowStrings.get('most_played')) {
             color = const Color(0xFFF44336);
             icon = Icons.local_fire_department;
           } else if (_userPlaylists.containsKey(baseName)) {
@@ -118,8 +123,8 @@ extension _DetailViewsUI on _MainScreenState {
 
           if (distinctCovers.length >= 4) {
             imageWidget = Container(
-              width: 260,
-              height: 260,
+              width: 300,
+              height: 300,
               decoration: BoxDecoration(
                 color: color.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
@@ -132,13 +137,15 @@ extension _DetailViewsUI on _MainScreenState {
                       children: [
                         _buildTrackArtwork(
                           distinctCovers[0],
-                          size: 130,
+                          size: 150,
                           radius: 0,
+                          cacheWidthOverride: 150,
                         ),
                         _buildTrackArtwork(
                           distinctCovers[1],
-                          size: 130,
+                          size: 150,
                           radius: 0,
+                          cacheWidthOverride: 150,
                         ),
                       ],
                     ),
@@ -146,13 +153,15 @@ extension _DetailViewsUI on _MainScreenState {
                       children: [
                         _buildTrackArtwork(
                           distinctCovers[2],
-                          size: 130,
+                          size: 150,
                           radius: 0,
+                          cacheWidthOverride: 150,
                         ),
                         _buildTrackArtwork(
                           distinctCovers[3],
-                          size: 130,
+                          size: 150,
                           radius: 0,
+                          cacheWidthOverride: 150,
                         ),
                       ],
                     ),
@@ -162,8 +171,8 @@ extension _DetailViewsUI on _MainScreenState {
             );
           } else {
             imageWidget = Container(
-              width: 260,
-              height: 260,
+              width: 300,
+              height: 300,
               decoration: BoxDecoration(
                 color: color.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
@@ -171,22 +180,22 @@ extension _DetailViewsUI on _MainScreenState {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: pSongs.isNotEmpty
-                    ? _buildTrackArtwork(pSongs.first, size: 260, radius: 0)
-                    : Icon(icon, size: 80, color: color),
+                    ? _buildTrackArtwork(pSongs.first, size: 300, radius: 0)
+                    : Icon(icon, size: 90, color: color),
               ),
             );
           }
         }
-      } else if (type == 'Artist') {
+      } else if (type == FlowStrings.get('artist')) {
         pSongs = _allTracks.where((t) => t.artist == baseName).toList();
         imageWidget = pSongs.isNotEmpty
-            ? _buildTrackArtwork(pSongs.first, size: 260, radius: 130)
-            : const SizedBox(width: 260, height: 260);
-      } else if (type == 'Album') {
+            ? _buildTrackArtwork(pSongs.first, size: 300, radius: 12)
+            : const SizedBox(width: 300, height: 300);
+      } else if (type == FlowStrings.get('album')) {
         pSongs = _allTracks.where((t) => t.album == baseName).toList();
         imageWidget = pSongs.isNotEmpty
-            ? _buildTrackArtwork(pSongs.first, size: 260, radius: 12)
-            : const SizedBox(width: 260, height: 260);
+            ? _buildTrackArtwork(pSongs.first, size: 300, radius: 12)
+            : const SizedBox(width: 300, height: 300);
       }
 
       if (_searchQuery.isNotEmpty) {
@@ -240,11 +249,15 @@ extension _DetailViewsUI on _MainScreenState {
     required List<Track> tracks,
   }) {
     final isLight = isAppLight;
-    final scaffoldBgColor = getAppBackgroundColor(
-      themeMode: themeModeNotifier.value,
-      customBg: customThemeBgNotifier.value,
-      artworkColor: dominantColorNotifier.value,
-    );
+    final scaffoldBgColor =
+        (themeModeNotifier.value == 'custom' &&
+            customThemeBgNotifier.value == 'custom_image')
+        ? (isLight ? const Color(0xFFF6F8FA) : const Color(0xFF0A0A0A))
+        : getAppBackgroundColor(
+            themeMode: themeModeNotifier.value,
+            customBg: customThemeBgNotifier.value,
+            artworkColor: dominantColorNotifier.value,
+          );
 
     final header = GestureDetector(
       onVerticalDragUpdate: (details) {
@@ -300,18 +313,20 @@ extension _DetailViewsUI on _MainScreenState {
                         borderRadius: BorderRadius.circular(10),
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 0),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Transform.translate(
-                          offset: const Offset(-12, 0),
+                          offset: const Offset(-20, 0),
                           child: IconButton(
                             icon: Icon(
                               Icons.keyboard_arrow_down,
                               color: isLight
-                                  ? const Color(0xFF1A1A1A)
-                                  : Colors.white,
+                                  ? const Color(
+                                      0xFF1A1A1A,
+                                    ).withValues(alpha: 0.5)
+                                  : Colors.white.withValues(alpha: 0.5),
                               size: 28,
                             ),
                             onPressed: () {
@@ -324,13 +339,15 @@ extension _DetailViewsUI on _MainScreenState {
                           ),
                         ),
                         Transform.translate(
-                          offset: const Offset(12, 0),
+                          offset: const Offset(20, 0),
                           child: IconButton(
                             icon: Icon(
                               Icons.more_vert,
                               color: isLight
-                                  ? const Color(0xFF1A1A1A)
-                                  : Colors.white,
+                                  ? const Color(
+                                      0xFF1A1A1A,
+                                    ).withValues(alpha: 0.5)
+                                  : Colors.white.withValues(alpha: 0.5),
                               size: 28,
                             ),
                             onPressed: () =>
@@ -345,12 +362,10 @@ extension _DetailViewsUI on _MainScreenState {
             ),
             const SizedBox(height: 16),
             Container(
-              width: 260,
-              height: 260,
+              width: 300,
+              height: 300,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(
-                  type == 'Artist' ? 130 : 12,
-                ),
+                borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withValues(alpha: isLight ? 0.15 : 0.4),
@@ -360,9 +375,7 @@ extension _DetailViewsUI on _MainScreenState {
                 ],
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(
-                  type == 'Artist' ? 130 : 12,
-                ),
+                borderRadius: BorderRadius.circular(12),
                 child: imageWidget,
               ),
             ),
@@ -536,6 +549,7 @@ extension _DetailViewsUI on _MainScreenState {
                                       firstTrack,
                                       size: 400,
                                       radius: 0,
+                                      cacheWidthOverride: 144,
                                     ),
                                   ),
                                 ),
@@ -692,7 +706,7 @@ extension _DetailViewsUI on _MainScreenState {
           _buildSongList(
             tracks,
             header: header,
-            isMostPlayed: title == 'Most Played',
+            isMostPlayed: title == FlowStrings.get('most_played'),
             controller: _detailScrollController,
           ),
         ],

@@ -156,7 +156,7 @@ extension _PlayerUI on _MainScreenState {
     return LayoutBuilder(
       builder: (context, constraints) {
         final double viewportHeight = constraints.maxHeight;
-        final double itemHeight = 110.0;
+        final double itemHeight = 125.0;
         final double verticalPadding = (viewportHeight / 2) - (itemHeight / 2);
 
         return StreamBuilder<Duration>(
@@ -216,7 +216,7 @@ extension _PlayerUI on _MainScreenState {
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 24.0,
-                        vertical: 12.0,
+                        vertical: 6.0,
                       ),
                       alignment: Alignment.center,
                       color: Colors.transparent,
@@ -382,8 +382,10 @@ extension _PlayerUI on _MainScreenState {
                 ElevatedButton.icon(
                   onPressed: () async {
                     final cleanTitle = currentTrack.title;
-                    final cleanArtist = currentTrack.artist.trim().isEmpty
-                        ? 'Unknown Artist'
+                    final cleanArtist =
+                        (currentTrack.artist.trim().isEmpty ||
+                            currentTrack.artist == '<unknown>')
+                        ? FlowStrings.get('unknown_artist')
                         : currentTrack.artist;
                     final query = Uri.encodeComponent(
                       '$cleanArtist $cleanTitle lyrics',
@@ -414,8 +416,8 @@ extension _PlayerUI on _MainScreenState {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text(
-                'Cancel',
+              child: Text(
+                FlowStrings.get('cancel'),
                 style: TextStyle(color: Colors.white38),
               ),
             ),
@@ -432,7 +434,7 @@ extension _PlayerUI on _MainScreenState {
                 }
                 navigator.pop();
                 _loadLyricsForTrack(currentTrack);
-                showFlowToast('Lyrics updated!');
+                showFlowToast(FlowStrings.get('toast_lyrics_updated'));
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: _activeAccentColor,
@@ -441,7 +443,7 @@ extension _PlayerUI on _MainScreenState {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child: const Text('Save'),
+              child: Text(FlowStrings.get('save')),
             ),
           ],
         );
@@ -460,46 +462,16 @@ extension _PlayerUI on _MainScreenState {
     Track track, {
     double size = 48,
     double radius = 8,
+    int? cacheWidthOverride,
   }) {
     final customPath = _metadataOverrides[track.id]?['coverPath'];
-    if (customPath != null) {
-      return Container(
-        key: ValueKey("artwork_custom_${track.id}_$size"),
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(radius),
-          image: DecorationImage(
-            image: ResizeImage(FileImage(File(customPath)), width: 600),
-            fit: BoxFit.cover,
-          ),
-        ),
-      );
-    }
-    return ClipRRect(
-      key: ValueKey("artwork_query_${track.id}_$size"),
-      borderRadius: BorderRadius.circular(radius),
-      child: QueryArtworkWidget(
-        id: int.parse(track.id),
-        type: ArtworkType.AUDIO,
-        artworkWidth: size,
-        artworkHeight: size,
-        artworkBorder: BorderRadius.circular(radius),
-        artworkFit: BoxFit.cover,
-        keepOldArtwork: true,
-        size: size > 100 ? 1000 : 200,
-        quality: size > 100 ? 100 : 50,
-        artworkQuality: size > 100 ? FilterQuality.high : FilterQuality.low,
-        nullArtworkWidget: Container(
-          width: size,
-          height: size,
-          decoration: BoxDecoration(
-            color: Colors.white10,
-            borderRadius: BorderRadius.circular(radius),
-          ),
-          child: const Icon(Icons.music_note, color: Colors.white54),
-        ),
-      ),
+    return CachedTrackArtwork(
+      key: ValueKey("cached_artwork_${track.id}_$size"),
+      trackId: track.id,
+      size: size,
+      radius: radius,
+      customPath: customPath,
+      cacheWidthOverride: cacheWidthOverride,
     );
   }
 
@@ -740,10 +712,10 @@ extension _PlayerUI on _MainScreenState {
                                     key: const ValueKey('lyrics_header'),
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      const Text(
-                                        'LYRICS',
+                                      Text(
+                                        FlowStrings.get('lyrics').toUpperCase(),
                                         textAlign: TextAlign.center,
-                                        style: TextStyle(
+                                        style: const TextStyle(
                                           fontWeight: FontWeight.w600,
                                           fontSize: 10,
                                           color: Colors.white38,
@@ -777,7 +749,7 @@ extension _PlayerUI on _MainScreenState {
                                             .toString()
                                             .padLeft(2, '0');
                                         return Text(
-                                          'SLEEP IN $mins:$secs',
+                                          '${FlowStrings.get('stops_in').toUpperCase()} $mins:$secs',
                                           textAlign: TextAlign.center,
                                           style: TextStyle(
                                             fontWeight: FontWeight.w600,
@@ -791,7 +763,7 @@ extension _PlayerUI on _MainScreenState {
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
                                           Text(
-                                            'PLAYING FROM $_playingFromType',
+                                            '${FlowStrings.get('playing_from').toUpperCase()} $_playingFromType',
                                             textAlign: TextAlign.center,
                                             style: const TextStyle(
                                               fontWeight: FontWeight.w600,
@@ -802,7 +774,9 @@ extension _PlayerUI on _MainScreenState {
                                           ),
                                           const SizedBox(height: 2),
                                           Text(
-                                            _playingFromName,
+                                            _playingFromName == 'All Songs'
+                                                ? FlowStrings.get('all_songs')
+                                                : _playingFromName,
                                             textAlign: TextAlign.center,
                                             style: const TextStyle(
                                               fontWeight: FontWeight.bold,
@@ -1132,56 +1106,109 @@ extension _PlayerUI on _MainScreenState {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        IconButton(
-                          icon: Icon(
-                            Icons.lyrics_outlined,
-                            color: _showLyrics
-                                ? _activeAccentColor
-                                : Colors.white54,
-                            size: 20,
-                          ),
-                          onPressed: () {
-                            setState(() {
-                              _showLyrics = !_showLyrics;
-                            });
-                            if (_showLyrics) {
-                              _loadLyricsForTrack(currentTrack);
-                            }
-                          },
+                        Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            IconButton(
+                              icon: Icon(
+                                Icons.lyrics_outlined,
+                                color: _showLyrics
+                                    ? _activeAccentColor
+                                    : Colors.white54,
+                                size: 20,
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  _showLyrics = !_showLyrics;
+                                });
+                                if (_showLyrics) {
+                                  _loadLyricsForTrack(currentTrack);
+                                }
+                              },
+                            ),
+                            if (_showLyrics)
+                              Positioned(
+                                bottom: 10,
+                                child: Container(
+                                  width: 4,
+                                  height: 4,
+                                  decoration: BoxDecoration(
+                                    color: _activeAccentColor,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
-                        IconButton(
-                          icon: Icon(
-                            Icons.shuffle,
-                            color: _isShuffle
-                                ? _activeAccentColor
-                                : Colors.white54,
-                            size: 20,
-                          ),
-                          onPressed: () {
-                            setState(() {
-                              _isShuffle = !_isShuffle;
-                              if (_isShuffle) {
-                                _shuffledIndices = List.generate(
-                                  _playbackQueue.length,
-                                  (i) => i,
-                                );
-                                _shuffledIndices.shuffle();
-                                _shuffledIndices.remove(_currentIndex);
-                                _shuffledIndices.insert(0, _currentIndex);
-                              }
-                            });
-                            _refreshAudioSourceWindow();
-                          },
+                        Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            IconButton(
+                              icon: Icon(
+                                Icons.shuffle,
+                                color: _isShuffle
+                                    ? _activeAccentColor
+                                    : Colors.white54,
+                                size: 20,
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  _isShuffle = !_isShuffle;
+                                  if (_isShuffle) {
+                                    _shuffledIndices = List.generate(
+                                      _playbackQueue.length,
+                                      (i) => i,
+                                    );
+                                    _shuffledIndices.shuffle();
+                                    _shuffledIndices.remove(_currentIndex);
+                                    _shuffledIndices.insert(0, _currentIndex);
+                                  }
+                                });
+                                _refreshAudioSourceWindow();
+                              },
+                            ),
+                            if (_isShuffle)
+                              Positioned(
+                                bottom: 10,
+                                child: Container(
+                                  width: 4,
+                                  height: 4,
+                                  decoration: BoxDecoration(
+                                    color: _activeAccentColor,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
-                        IconButton(
-                          icon: Icon(
-                            _repeatMode == 2 ? Icons.repeat_one : Icons.repeat,
-                            color: _repeatMode != 0
-                                ? _activeAccentColor
-                                : Colors.white54,
-                            size: 20,
-                          ),
-                          onPressed: _toggleRepeatMode,
+                        Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            IconButton(
+                              icon: Icon(
+                                _repeatMode == 2
+                                    ? Icons.repeat_one
+                                    : Icons.repeat,
+                                color: _repeatMode != 0
+                                    ? _activeAccentColor
+                                    : Colors.white54,
+                                size: 20,
+                              ),
+                              onPressed: _toggleRepeatMode,
+                            ),
+                            if (_repeatMode != 0)
+                              Positioned(
+                                bottom: 10,
+                                child: Container(
+                                  width: 4,
+                                  height: 4,
+                                  decoration: BoxDecoration(
+                                    color: _activeAccentColor,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
                         IconButton(
                           icon: const Icon(
@@ -1279,6 +1306,162 @@ class _WaveDotsState extends State<_WaveDots>
           }),
         );
       },
+    );
+  }
+}
+
+class CachedTrackArtwork extends StatefulWidget {
+  final String trackId;
+  final double size;
+  final double radius;
+  final String? customPath;
+  final int? cacheWidthOverride;
+
+  const CachedTrackArtwork({
+    super.key,
+    required this.trackId,
+    this.size = 48,
+    this.radius = 8,
+    this.customPath,
+    this.cacheWidthOverride,
+  });
+
+  @override
+  State<CachedTrackArtwork> createState() => _CachedTrackArtworkState();
+}
+
+class _CachedTrackArtworkState extends State<CachedTrackArtwork> {
+  Uint8List? _bytes;
+  bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(CachedTrackArtwork oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.trackId != oldWidget.trackId ||
+        widget.customPath != oldWidget.customPath) {
+      _load();
+    }
+  }
+
+  void _load() {
+    // Bypass the low-res thumbnail cache for large artworks (player view, headers)
+    if (widget.size > 100) {
+      _loading = true;
+      return;
+    }
+
+    if (widget.customPath != null && widget.customPath!.isNotEmpty) {
+      // Custom images are handled by Flutter's native ImageCache
+      _bytes = null;
+      _loading = true;
+      return;
+    }
+
+    final cached = ArtworkCacheManager.getCachedArtwork(widget.trackId);
+    if (cached != null) {
+      _bytes = cached;
+      _loading = false;
+      return;
+    }
+
+    if (ArtworkCacheManager.isCached(widget.trackId)) {
+      _bytes = null;
+      _loading = false;
+      return;
+    }
+
+    _loading = true;
+    ArtworkCacheManager.fetchAndCacheNativeArtwork(widget.trackId).then((
+      bytes,
+    ) {
+      if (mounted) {
+        setState(() {
+          _bytes = bytes;
+          _loading = false;
+        });
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_bytes != null) {
+      return Container(
+        width: widget.size,
+        height: widget.size,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(widget.radius),
+          image: DecorationImage(
+            image: MemoryImage(_bytes!),
+            fit: BoxFit.cover,
+          ),
+        ),
+      );
+    }
+
+    if (_loading &&
+        widget.customPath != null &&
+        widget.customPath!.isNotEmpty) {
+      final int cacheWidth =
+          widget.cacheWidthOverride ??
+          (widget.size > 100 ? 600 : (widget.size * 3).toInt());
+      return Container(
+        width: widget.size,
+        height: widget.size,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(widget.radius),
+          image: DecorationImage(
+            image: ResizeImage(
+              FileImage(File(widget.customPath!)),
+              width: cacheWidth,
+            ),
+            fit: BoxFit.cover,
+          ),
+        ),
+      );
+    }
+
+    if (_loading && widget.size > 100) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(widget.radius),
+        child: QueryArtworkWidget(
+          id: int.parse(widget.trackId),
+          type: ArtworkType.AUDIO,
+          artworkWidth: widget.size,
+          artworkHeight: widget.size,
+          artworkBorder: BorderRadius.circular(widget.radius),
+          artworkFit: BoxFit.cover,
+          keepOldArtwork: true,
+          size: 1000,
+          quality: 100,
+          artworkQuality: FilterQuality.high,
+          nullArtworkWidget: Container(
+            width: widget.size,
+            height: widget.size,
+            decoration: BoxDecoration(
+              color: Colors.white10,
+              borderRadius: BorderRadius.circular(widget.radius),
+            ),
+            child: const Icon(Icons.music_note, color: Colors.white54),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      width: widget.size,
+      height: widget.size,
+      decoration: BoxDecoration(
+        color: Colors.white10,
+        borderRadius: BorderRadius.circular(widget.radius),
+      ),
+      child: const Icon(Icons.music_note, color: Colors.white54),
     );
   }
 }

@@ -115,25 +115,25 @@ extension _TabsUI on _MainScreenState {
         onTap: () => _showCreatePlaylistModal(context),
       ),
       _buildPlaylistCard(
-        'Favourites',
+        FlowStrings.get('favourites'),
         favorites,
         const Color(0xFFE91E63),
         Icons.favorite,
       ),
       _buildPlaylistCard(
-        'Recently Added',
+        FlowStrings.get('recently_added'),
         recentlyAdded,
         const Color(0xFF2196F3),
         Icons.new_releases,
       ),
       _buildPlaylistCard(
-        'Last Played',
+        FlowStrings.get('last_played'),
         lastPlayed,
         const Color(0xFFFF9800),
         Icons.history,
       ),
       _buildPlaylistCard(
-        'Most Played',
+        FlowStrings.get('most_played'),
         mostPlayed,
         const Color(0xFFF44336),
         Icons.local_fire_department,
@@ -142,7 +142,7 @@ extension _TabsUI on _MainScreenState {
         Padding(
           padding: const EdgeInsets.only(top: 16, bottom: 8, left: 8),
           child: Text(
-            'My Playlists',
+            FlowStrings.get('my_playlists'),
             style: TextStyle(
               color: isAppLight ? const Color(0xFF1A1A1A) : Colors.white,
               fontSize: 18,
@@ -278,7 +278,7 @@ extension _TabsUI on _MainScreenState {
                 );
               });
             },
-            leading: _buildTrackArtwork(firstTrack, size: 44, radius: 22),
+            leading: _buildTrackArtwork(firstTrack, size: 44, radius: 6),
             title: Text(
               artist,
               style: TextStyle(
@@ -288,7 +288,7 @@ extension _TabsUI on _MainScreenState {
               ),
             ),
             subtitle: Text(
-              '$songCount songs',
+              '$songCount ${FlowStrings.get('songs_count')}',
               style: TextStyle(
                 color: isAppLight ? Colors.black45 : Colors.white38,
                 fontSize: 12,
@@ -405,7 +405,7 @@ extension _TabsUI on _MainScreenState {
               ),
             ),
             subtitle: Text(
-              '$songCount songs',
+              '$songCount ${FlowStrings.get('songs_count')}',
               style: TextStyle(
                 color: isAppLight ? Colors.black45 : Colors.white38,
                 fontSize: 12,
@@ -432,7 +432,7 @@ extension _TabsUI on _MainScreenState {
     if (list.isEmpty && header == null) {
       return Center(
         child: Text(
-          'No matching songs found',
+          FlowStrings.get('no_matching_songs'),
           style: TextStyle(
             color: Colors.white.withValues(alpha: 0.4),
             fontSize: 14,
@@ -459,15 +459,10 @@ extension _TabsUI on _MainScreenState {
 
         final staggerIndex = trackIndex < 8 ? trackIndex : 0;
         final isDetail = header != null;
-        final shouldAnimate = isDetail
-            ? !_animatedDetailTrackIds.contains(track.id)
-            : !_animatedTrackIds.contains(track.id);
+        final shouldAnimate =
+            !isDetail && !_animatedTrackIds.contains(track.id);
         if (shouldAnimate) {
-          if (isDetail) {
-            _animatedDetailTrackIds.add(track.id);
-          } else {
-            _animatedTrackIds.add(track.id);
-          }
+          _animatedTrackIds.add(track.id);
         }
 
         return _FadeInSlideUp(
@@ -518,7 +513,7 @@ extension _TabsUI on _MainScreenState {
               ),
               subtitle: Text(
                 isMostPlayed
-                    ? '${_playCounts[track.id] ?? 0} plays • ${track.artist}'
+                    ? '${_playCounts[track.id] ?? 0} ${FlowStrings.get('plays_count')} • ${track.artist}'
                     : track.artist,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -614,7 +609,7 @@ extension _TabsUI on _MainScreenState {
                 },
                 style: TextStyle(fontSize: 14, color: textColor),
                 decoration: InputDecoration(
-                  hintText: 'Search songs, artists, or albums...',
+                  hintText: FlowStrings.get('search_songs'),
                   hintStyle: TextStyle(color: hintColor, fontSize: 13),
                   prefixIcon: Icon(Icons.search, color: iconColor, size: 20),
                   suffixIcon: _searchQuery.isNotEmpty
@@ -658,7 +653,12 @@ extension _TabsUI on _MainScreenState {
 
   Widget _buildFilterCapsules() {
     final isLight = isAppLight;
-    final filters = ['Songs', 'Playlists', 'Artists', 'Albums'];
+    final filters = [
+      FlowStrings.get('songs_title'),
+      FlowStrings.get('playlists'),
+      FlowStrings.get('artists'),
+      FlowStrings.get('albums'),
+    ];
     return Padding(
       padding: const EdgeInsets.only(left: 24, right: 24, top: 16, bottom: 8),
       child: SizedBox(
@@ -671,7 +671,15 @@ extension _TabsUI on _MainScreenState {
             return Expanded(
               child: GestureDetector(
                 onTap: () {
-                  _pageController.jumpToPage(index);
+                  if (_currentPageIndex != index) {
+                    setState(() {
+                      if (index == 0) _animatedTrackIds.clear();
+                      if (index == 1) _animatedPlaylistIds.clear();
+                      if (index == 2) _animatedArtistIds.clear();
+                      if (index == 3) _animatedAlbumIds.clear();
+                    });
+                    _pageController.jumpToPage(index);
+                  }
                 },
                 child: Container(
                   margin: EdgeInsets.only(
@@ -747,14 +755,31 @@ class _FadeInSlideUpState extends State<_FadeInSlideUp> {
   bool _isMounted = false;
   Timer? _timer;
   late bool _animate;
+  int _restartCount = 0;
 
   @override
   void initState() {
     super.initState();
+    _initAnimation();
+  }
+
+  @override
+  void didUpdateWidget(_FadeInSlideUp oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (widget.animate == true && oldWidget.animate == false) {
+      _initAnimation();
+    }
+  }
+
+  void _initAnimation() {
+    _timer?.cancel();
+    _restartCount++;
     _animate = widget.animate;
-    if (!_animate || widget.delay == Duration.zero) {
+    if (!_animate) {
       _isMounted = true;
     } else {
+      _isMounted = false;
       _timer = Timer(widget.delay, () {
         if (mounted) {
           setState(() {
@@ -776,6 +801,7 @@ class _FadeInSlideUpState extends State<_FadeInSlideUp> {
     final double targetValue = (_isMounted || !_animate) ? 1.0 : 0.0;
 
     return TweenAnimationBuilder<double>(
+      key: ValueKey(_restartCount),
       tween: Tween<double>(begin: _animate ? 0.0 : 1.0, end: targetValue),
       duration: _animate ? const Duration(milliseconds: 350) : Duration.zero,
       curve: Curves.easeOutCubic,

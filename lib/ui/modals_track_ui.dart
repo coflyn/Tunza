@@ -68,35 +68,55 @@ extension _ModalsTrackUI on _MainScreenState {
                         : Colors.white10,
                     height: 1,
                   ),
-                  _buildOptionItem(Icons.playlist_play, 'Play next', () {
-                    Navigator.pop(context);
-                    if (_playbackQueue.isNotEmpty) {
-                      _moveTrackInQueue(track, _currentIndex + 1);
-                      showFlowToast("Added to play next");
-                    }
-                  }),
-                  _buildOptionItem(Icons.queue_music, 'Add to queue', () {
-                    Navigator.pop(context);
-                    if (_playbackQueue.isNotEmpty) {
-                      _moveTrackInQueue(track, _playbackQueue.length);
-                      showFlowToast("Added to queue");
-                    }
-                  }),
-                  _buildOptionItem(Icons.playlist_add, 'Add to Playlist', () {
-                    Navigator.pop(context);
-                    _showAddToPlaylistModal(context, [track]);
-                  }),
-                  _buildOptionItem(Icons.timer, 'Sleep Timer', () {
-                    Navigator.pop(context);
-                    _showFullSleepTimerDialog(context);
-                  }),
-                  _buildOptionItem(Icons.equalizer_rounded, 'Equalizer', () {
-                    Navigator.pop(context);
-                    MainScreen.showEqualizer(context);
-                  }),
+                  _buildOptionItem(
+                    Icons.playlist_play,
+                    FlowStrings.get('play_next'),
+                    () {
+                      Navigator.pop(context);
+                      if (_playbackQueue.isNotEmpty) {
+                        _moveTrackInQueue(track, _currentIndex + 1);
+                        showFlowToast(FlowStrings.get('added_play_next'));
+                      }
+                    },
+                  ),
+                  _buildOptionItem(
+                    Icons.queue_music,
+                    FlowStrings.get('add_to_queue'),
+                    () {
+                      Navigator.pop(context);
+                      if (_playbackQueue.isNotEmpty) {
+                        _moveTrackInQueue(track, _playbackQueue.length);
+                        showFlowToast(FlowStrings.get('added_songs_to_queue'));
+                      }
+                    },
+                  ),
+                  _buildOptionItem(
+                    Icons.playlist_add,
+                    FlowStrings.get('add_to_playlist'),
+                    () {
+                      Navigator.pop(context);
+                      _showAddToPlaylistModal(context, [track]);
+                    },
+                  ),
+                  _buildOptionItem(
+                    Icons.timer,
+                    FlowStrings.get('sleep_timer'),
+                    () {
+                      Navigator.pop(context);
+                      _showFullSleepTimerDialog(context);
+                    },
+                  ),
+                  _buildOptionItem(
+                    Icons.equalizer_rounded,
+                    FlowStrings.get('equalizer'),
+                    () {
+                      Navigator.pop(context);
+                      MainScreen.showEqualizer(context);
+                    },
+                  ),
                   _buildOptionItem(
                     isFavorited ? Icons.favorite : Icons.favorite_border,
-                    'Favourite',
+                    FlowStrings.get('favourites'),
                     () {
                       _toggleFavorite(track.id);
                       setModalState(() {});
@@ -105,59 +125,75 @@ extension _ModalsTrackUI on _MainScreenState {
                         ? _activeAccentColor
                         : (isLight ? Colors.black54 : Colors.white70),
                   ),
-                  _buildOptionItem(Icons.album_outlined, 'Go to album', () {
-                    Navigator.pop(context);
-                    setState(() {
-                      _isPlayerOpen = false;
-                      _selectedAlbumDetail = track.album;
-                      _searchQuery = '';
-                      _searchController.clear();
-                      final albumSongs = _allTracks
-                          .where((t) => t.album == track.album)
-                          .toList();
-                      _detailColorFuture = _getDetailColor(
-                        albumSongs.isNotEmpty ? albumSongs.first : null,
-                      );
-                      _currentPageIndex = 3;
-                      _pageController.animateToPage(
-                        3,
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.easeInOut,
-                      );
-                    });
-                  }),
-                  _buildOptionItem(Icons.person_outline, 'Go to artist', () {
-                    Navigator.pop(context);
-                    setState(() {
-                      _isPlayerOpen = false;
-                      _selectedArtistDetail = track.artist;
-                      _searchQuery = '';
-                      _searchController.clear();
-                      final artistSongs = _allTracks
-                          .where((t) => t.artist == track.artist)
-                          .toList();
-                      _detailColorFuture = _getDetailColor(
-                        artistSongs.isNotEmpty ? artistSongs.first : null,
-                      );
-                      _currentPageIndex = 2;
-                      _pageController.animateToPage(
-                        2,
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.easeInOut,
-                      );
-                    });
-                  }),
-                  _buildOptionItem(Icons.edit_outlined, 'Edit metadata', () {
-                    Navigator.pop(context);
-                    _showEditMetadataModal(context, track);
-                  }),
-                  _buildOptionItem(Icons.info_outline, 'Song Info', () {
-                    Navigator.pop(context);
-                    _showSongInfoModal(context, track);
-                  }),
+                  _buildOptionItem(
+                    Icons.album_outlined,
+                    FlowStrings.get('go_to_album'),
+                    () {
+                      Navigator.pop(context);
+                      setState(() {
+                        _isPlayerOpen = false;
+                        _selectedAlbumDetail = track.album;
+                        _searchQuery = '';
+                        _searchController.clear();
+                        final albumSongs = _allTracks
+                            .where((t) => t.album == track.album)
+                            .toList();
+                        _detailColorFuture = _getDetailColor(
+                          albumSongs.isNotEmpty ? albumSongs.first : null,
+                        );
+                        _currentPageIndex = 3;
+                        _pageController.animateToPage(
+                          3,
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeInOut,
+                        );
+                      });
+                    },
+                  ),
+                  _buildOptionItem(
+                    Icons.person_outline,
+                    FlowStrings.get('go_to_artist'),
+                    () {
+                      Navigator.pop(context);
+                      setState(() {
+                        _isPlayerOpen = false;
+                        _selectedArtistDetail = track.artist;
+                        _searchQuery = '';
+                        _searchController.clear();
+                        final artistSongs = _allTracks
+                            .where((t) => t.artist == track.artist)
+                            .toList();
+                        _detailColorFuture = _getDetailColor(
+                          artistSongs.isNotEmpty ? artistSongs.first : null,
+                        );
+                        _currentPageIndex = 2;
+                        _pageController.animateToPage(
+                          2,
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeInOut,
+                        );
+                      });
+                    },
+                  ),
+                  _buildOptionItem(
+                    Icons.edit_outlined,
+                    FlowStrings.get('edit_metadata'),
+                    () {
+                      Navigator.pop(context);
+                      _showEditMetadataModal(context, track);
+                    },
+                  ),
+                  _buildOptionItem(
+                    Icons.info_outline,
+                    FlowStrings.get('song_info'),
+                    () {
+                      Navigator.pop(context);
+                      _showSongInfoModal(context, track);
+                    },
+                  ),
                   _buildOptionItem(
                     Icons.visibility_off_outlined,
-                    'Hide from library',
+                    FlowStrings.get('hide_from_library'),
                     () async {
                       Navigator.pop(context);
                       final prefs = await SharedPreferences.getInstance();
@@ -178,14 +214,22 @@ extension _ModalsTrackUI on _MainScreenState {
                         'cached_tracks_list',
                         jsonEncode(serialized),
                       );
-                      showFlowToast("Track hidden from library");
+                      showFlowToast(FlowStrings.get('track_hidden'));
                     },
                   ),
                   _buildOptionItem(
                     Icons.delete_outline,
-                    'Delete from device',
+                    FlowStrings.get('delete_from_device'),
                     () async {
                       Navigator.pop(context);
+                      final bool? confirm = await showConfirmationDialog(
+                        this.context,
+                        title: FlowStrings.get('confirm_delete'),
+                        content: FlowStrings.get('confirm_delete_body'),
+                        confirmText: FlowStrings.get('delete'),
+                      );
+                      if (confirm != true) return;
+
                       try {
                         final file = File(track.path);
                         if (await file.exists()) {
@@ -203,9 +247,9 @@ extension _ModalsTrackUI on _MainScreenState {
                             'cached_tracks_list',
                             jsonEncode(serialized),
                           );
-                          showFlowToast("Track deleted");
+                          showFlowToast(FlowStrings.get('track_deleted'));
                         } else {
-                          showFlowToast("File not found");
+                          showFlowToast(FlowStrings.get('file_not_found'));
                         }
                       } catch (e) {
                         if (!context.mounted) return;
@@ -221,7 +265,7 @@ extension _ModalsTrackUI on _MainScreenState {
                                 borderRadius: BorderRadius.circular(16),
                               ),
                               title: Text(
-                                'Permission Denied',
+                                FlowStrings.get('permission_denied'),
                                 style: TextStyle(
                                   color: isLight
                                       ? const Color(0xFF1A1A1A)
@@ -231,7 +275,7 @@ extension _ModalsTrackUI on _MainScreenState {
                                 ),
                               ),
                               content: Text(
-                                'Android Scoped Storage prevents Flow from directly deleting files in your device storage.\n\nWould you like to hide this track from your Flow library instead?',
+                                FlowStrings.get('scoped_storage_warning'),
                                 style: TextStyle(
                                   color: isLight
                                       ? Colors.black54
@@ -244,7 +288,7 @@ extension _ModalsTrackUI on _MainScreenState {
                                 TextButton(
                                   onPressed: () => Navigator.pop(context),
                                   child: Text(
-                                    'Cancel',
+                                    FlowStrings.get('cancel'),
                                     style: TextStyle(
                                       color: isLight
                                           ? Colors.black45
@@ -279,10 +323,12 @@ extension _ModalsTrackUI on _MainScreenState {
                                       'cached_tracks_list',
                                       jsonEncode(serialized),
                                     );
-                                    showFlowToast("Track hidden from library");
+                                    showFlowToast(
+                                      FlowStrings.get('track_hidden'),
+                                    );
                                   },
                                   child: Text(
-                                    'Hide Track',
+                                    FlowStrings.get('hide_track'),
                                     style: TextStyle(
                                       color: _activeAccentColor,
                                       fontWeight: FontWeight.bold,
@@ -347,7 +393,7 @@ extension _ModalsTrackUI on _MainScreenState {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Edit Metadata',
+                        FlowStrings.get('edit_metadata'),
                         style: TextStyle(
                           color: isLight
                               ? const Color(0xFF1A1A1A)
@@ -365,7 +411,9 @@ extension _ModalsTrackUI on _MainScreenState {
                                 await _showCoverSourceSelector(this.context);
                             if (imagePath != null) {
                               setModalState(() {
-                                currentCoverPath = imagePath;
+                                currentCoverPath = imagePath == 'reset'
+                                    ? null
+                                    : imagePath;
                               });
                             }
                           },
@@ -381,7 +429,7 @@ extension _ModalsTrackUI on _MainScreenState {
                                   ? DecorationImage(
                                       image: ResizeImage(
                                         FileImage(File(currentCoverPath!)),
-                                        width: 600,
+                                        width: 300,
                                       ),
                                       fit: BoxFit.cover,
                                     )
@@ -409,7 +457,7 @@ extension _ModalsTrackUI on _MainScreenState {
                           fontFamily: _activeFont,
                         ),
                         decoration: InputDecoration(
-                          labelText: 'Title',
+                          labelText: FlowStrings.get('title'),
                           labelStyle: TextStyle(
                             color: isLight ? Colors.black54 : Colors.white54,
                             fontFamily: _activeFont,
@@ -434,7 +482,7 @@ extension _ModalsTrackUI on _MainScreenState {
                           fontFamily: _activeFont,
                         ),
                         decoration: InputDecoration(
-                          labelText: 'Artist',
+                          labelText: FlowStrings.get('artist'),
                           labelStyle: TextStyle(
                             color: isLight ? Colors.black54 : Colors.white54,
                             fontFamily: _activeFont,
@@ -459,7 +507,7 @@ extension _ModalsTrackUI on _MainScreenState {
                           fontFamily: _activeFont,
                         ),
                         decoration: InputDecoration(
-                          labelText: 'Album',
+                          labelText: FlowStrings.get('album'),
                           labelStyle: TextStyle(
                             color: isLight ? Colors.black54 : Colors.white54,
                             fontFamily: _activeFont,
@@ -491,10 +539,12 @@ extension _ModalsTrackUI on _MainScreenState {
                                 _saveMetadataOverrides();
                                 _requestPermissionAndScan();
                                 Navigator.pop(context);
-                                showFlowToast("Metadata reset to original");
+                                showFlowToast(
+                                  FlowStrings.get('metadata_reset'),
+                                );
                               },
                               child: Text(
-                                'Reset',
+                                FlowStrings.get('reset'),
                                 style: TextStyle(
                                   color: Colors.redAccent,
                                   fontFamily: _activeFont,
@@ -504,7 +554,7 @@ extension _ModalsTrackUI on _MainScreenState {
                           TextButton(
                             onPressed: () => Navigator.pop(context),
                             child: Text(
-                              'Cancel',
+                              FlowStrings.get('cancel'),
                               style: TextStyle(
                                 color: isLight
                                     ? Colors.black54
@@ -554,16 +604,53 @@ extension _ModalsTrackUI on _MainScreenState {
                                   if (currentCoverPath != null) {
                                     _updateDominantColor(_playingTrack!);
                                   }
+
+                                  final currentMediaItem =
+                                      audioHandler.mediaItem.value;
+                                  if (currentMediaItem != null &&
+                                      currentMediaItem.id == track.id) {
+                                    audioHandler.updateMediaItem(
+                                      currentMediaItem.copyWith(
+                                        title: titleController.text.trim(),
+                                        artist: artistController.text.trim(),
+                                        album: albumController.text.trim(),
+                                        artUri: currentCoverPath != null
+                                            ? Uri.file(currentCoverPath!)
+                                            : currentMediaItem.artUri,
+                                      ),
+                                    );
+                                  }
+                                }
+
+                                if (index != -1) {
+                                  for (
+                                    int i = 0;
+                                    i < _playbackQueue.length;
+                                    i++
+                                  ) {
+                                    if (_playbackQueue[i].id == track.id) {
+                                      _playbackQueue[i] = _allTracks[index];
+                                    }
+                                  }
                                 }
                                 _cachedDetailKey =
                                     null; // Clear cache so Lists like Recently Added auto-update
                               });
+
                               _saveMetadataOverrides();
                               Navigator.pop(context);
+
+                              // Trigger a rebuild of the main application state after pop
+                              Future.delayed(
+                                const Duration(milliseconds: 50),
+                                () {
+                                  if (mounted) setState(() {});
+                                },
+                              );
                               showFlowToast("Metadata updated locally");
                             },
-                            child: const Text(
-                              'Save',
+                            child: Text(
+                              FlowStrings.get('save'),
                               style: TextStyle(color: Colors.black),
                             ),
                           ),
@@ -623,35 +710,52 @@ extension _ModalsTrackUI on _MainScreenState {
                   ),
                 ),
                 const SizedBox(height: 24),
-                _buildOptionItem(Icons.playlist_play, 'Play Next', () {
-                  Navigator.pop(context);
-                  if (tracks.isNotEmpty) {
-                    int insertPos = _currentIndex + 1;
-                    for (final track in tracks) {
-                      _moveTrackInQueue(track, insertPos);
-                      insertPos++;
+                _buildOptionItem(
+                  Icons.playlist_play,
+                  FlowStrings.get('play_next'),
+                  () {
+                    Navigator.pop(context);
+                    if (tracks.isNotEmpty) {
+                      int insertPos = _currentIndex + 1;
+                      for (final track in tracks) {
+                        _moveTrackInQueue(track, insertPos);
+                        insertPos++;
+                      }
+                      showFlowToast(
+                        "Added ${tracks.length} tracks to play next",
+                      );
                     }
-                    showFlowToast("Added ${tracks.length} tracks to play next");
-                  }
-                }),
-                _buildOptionItem(Icons.queue_music, 'Add to Queue', () {
-                  Navigator.pop(context);
-                  if (tracks.isNotEmpty) {
-                    for (final track in tracks) {
-                      _moveTrackInQueue(track, _playbackQueue.length);
+                  },
+                ),
+                _buildOptionItem(
+                  Icons.queue_music,
+                  FlowStrings.get('add_to_queue'),
+                  () {
+                    Navigator.pop(context);
+                    if (tracks.isNotEmpty) {
+                      for (final track in tracks) {
+                        _moveTrackInQueue(track, _playbackQueue.length);
+                      }
+                      showFlowToast("Added ${tracks.length} tracks to queue");
                     }
-                    showFlowToast("Added ${tracks.length} tracks to queue");
-                  }
-                }),
-                _buildOptionItem(Icons.playlist_add, 'Add to Playlist', () {
-                  Navigator.pop(context);
-                  _showMultiSelectSongsModal(context, candidateTracks: tracks);
-                }),
+                  },
+                ),
+                _buildOptionItem(
+                  Icons.playlist_add,
+                  FlowStrings.get('add_to_playlist'),
+                  () {
+                    Navigator.pop(context);
+                    _showMultiSelectSongsModal(
+                      context,
+                      candidateTracks: tracks,
+                    );
+                  },
+                ),
                 _buildOptionItem(Icons.sort_rounded, 'Sort Songs', () {
                   Navigator.pop(context);
                   _showDetailSortModal(context);
                 }),
-                if (type == 'Album') ...[
+                if (type == FlowStrings.get('album')) ...[
                   _buildOptionItem(Icons.image, 'Edit Album Cover', () async {
                     Navigator.pop(context);
                     final String? imagePath = await _showCoverSourceSelector(
@@ -660,13 +764,19 @@ extension _ModalsTrackUI on _MainScreenState {
                     if (imagePath != null) {
                       setState(() {
                         for (final track in tracks) {
-                          _metadataOverrides[track.id] ??= {
-                            'title': track.title,
-                            'artist': track.artist,
-                            'album': track.album,
-                          };
-                          _metadataOverrides[track.id]!['coverPath'] =
-                              imagePath;
+                          if (imagePath == 'reset') {
+                            if (_metadataOverrides.containsKey(track.id)) {
+                              _metadataOverrides[track.id]!.remove('coverPath');
+                            }
+                          } else {
+                            _metadataOverrides[track.id] ??= {
+                              'title': track.title,
+                              'artist': track.artist,
+                              'album': track.album,
+                            };
+                            _metadataOverrides[track.id]!['coverPath'] =
+                                imagePath;
+                          }
                         }
                         _cachedDetailKey =
                             null; // Force rebuild to show new cover
@@ -676,7 +786,11 @@ extension _ModalsTrackUI on _MainScreenState {
                           tracks.any((t) => t.id == _playingTrack!.id)) {
                         _updateDominantColor(_playingTrack!);
                       }
-                      showFlowToast("Album cover updated locally");
+                      showFlowToast(
+                        imagePath == 'reset'
+                            ? FlowStrings.get('cover_reset_success')
+                            : "Album cover updated locally",
+                      );
                     }
                   }),
                 ],
@@ -688,7 +802,11 @@ extension _ModalsTrackUI on _MainScreenState {
                     );
                     if (imagePath != null) {
                       setState(() {
-                        _playlistCovers[title] = imagePath;
+                        if (imagePath == 'reset') {
+                          _playlistCovers.remove(title);
+                        } else {
+                          _playlistCovers[title] = imagePath;
+                        }
                         _cachedDetailKey =
                             null; // Force rebuild to show new cover
                       });
@@ -698,6 +816,11 @@ extension _ModalsTrackUI on _MainScreenState {
                           jsonEncode(_playlistCovers),
                         );
                       });
+                      showFlowToast(
+                        imagePath == 'reset'
+                            ? FlowStrings.get('cover_reset_success')
+                            : "Cover updated",
+                      );
                     }
                   }),
                 ],
@@ -715,28 +838,45 @@ extension _ModalsTrackUI on _MainScreenState {
                       predefinedTargetPlaylist: title,
                     );
                   }),
-                  _buildOptionItem(Icons.edit, 'Rename Playlist', () {
-                    Navigator.pop(context);
-                    _showRenamePlaylistModal(context, title);
-                  }),
-                  _buildOptionItem(Icons.delete_outline, 'Delete Playlist', () {
-                    Navigator.pop(context);
-                    setState(() {
-                      _userPlaylists.remove(title);
-                      _playlistCovers.remove(title);
-                      _selectedPlaylistDetail = null;
-                    });
-                    SharedPreferences.getInstance().then((prefs) {
-                      prefs.setString(
-                        'user_playlists',
-                        jsonEncode(_userPlaylists),
+                  _buildOptionItem(
+                    Icons.edit,
+                    FlowStrings.get('rename_playlist'),
+                    () {
+                      Navigator.pop(context);
+                      _showRenamePlaylistModal(context, title);
+                    },
+                  ),
+                  _buildOptionItem(
+                    Icons.delete_outline,
+                    FlowStrings.get('delete_playlist'),
+                    () async {
+                      Navigator.pop(context);
+                      final bool? confirm = await showConfirmationDialog(
+                        this.context,
+                        title: FlowStrings.get('confirm_delete'),
+                        content: FlowStrings.get('confirm_delete_playlist'),
+                        confirmText: FlowStrings.get('delete'),
                       );
-                      prefs.setString(
-                        'playlist_covers',
-                        jsonEncode(_playlistCovers),
-                      );
-                    });
-                  }, iconColor: Colors.red),
+                      if (confirm != true) return;
+
+                      setState(() {
+                        _userPlaylists.remove(title);
+                        _playlistCovers.remove(title);
+                        _selectedPlaylistDetail = null;
+                      });
+                      SharedPreferences.getInstance().then((prefs) {
+                        prefs.setString(
+                          'user_playlists',
+                          jsonEncode(_userPlaylists),
+                        );
+                        prefs.setString(
+                          'playlist_covers',
+                          jsonEncode(_playlistCovers),
+                        );
+                      });
+                    },
+                    iconColor: Colors.red,
+                  ),
                 ],
                 const SizedBox(height: 16),
               ],
@@ -816,7 +956,7 @@ extension _ModalsTrackUI on _MainScreenState {
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 24),
                     child: Text(
-                      'Sort by',
+                      FlowStrings.get('sort_by'),
                       style: TextStyle(
                         color: isLight ? const Color(0xFF1A1A1A) : Colors.white,
                         fontSize: 18,
@@ -834,33 +974,37 @@ extension _ModalsTrackUI on _MainScreenState {
                   ),
                   buildSortItem(
                     'date',
-                    'Recently Added (Default)',
+                    FlowStrings.get('sort_recently_added'),
                     Icons.calendar_today_rounded,
                   ),
                   buildSortItem(
                     'date_oldest',
-                    'Oldest Added first',
+                    FlowStrings.get('sort_oldest'),
                     Icons.history_toggle_off_rounded,
                   ),
                   buildSortItem(
                     'title',
-                    'Title (A to Z)',
+                    FlowStrings.get('sort_title_az'),
                     Icons.sort_by_alpha_rounded,
                   ),
                   buildSortItem(
                     'artist',
-                    'Artist (A to Z)',
+                    FlowStrings.get('sort_artist_az'),
                     Icons.person_search_rounded,
                   ),
-                  buildSortItem('album', 'Album (A to Z)', Icons.album_rounded),
+                  buildSortItem(
+                    'album',
+                    FlowStrings.get('sort_album_az'),
+                    Icons.album_rounded,
+                  ),
                   buildSortItem(
                     'duration_longest',
-                    'Duration (Longest first)',
+                    FlowStrings.get('sort_duration_longest'),
                     Icons.hourglass_top_rounded,
                   ),
                   buildSortItem(
                     'duration_shortest',
-                    'Duration (Shortest first)',
+                    FlowStrings.get('sort_duration_shortest'),
                     Icons.hourglass_bottom_rounded,
                   ),
                   const SizedBox(height: 16),
@@ -944,7 +1088,7 @@ extension _ModalsTrackUI on _MainScreenState {
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 24),
                     child: Text(
-                      'Sort songs in view',
+                      FlowStrings.get('sort_songs_in_view'),
                       style: TextStyle(
                         color: isLight ? const Color(0xFF1A1A1A) : Colors.white,
                         fontSize: 18,
@@ -962,27 +1106,27 @@ extension _ModalsTrackUI on _MainScreenState {
                   ),
                   buildSortItem(
                     'default',
-                    'Default Track Order',
+                    FlowStrings.get('sort_default_order'),
                     Icons.playlist_play,
                   ),
                   buildSortItem(
                     'title',
-                    'Title (A to Z)',
+                    FlowStrings.get('sort_title_az'),
                     Icons.sort_by_alpha_rounded,
                   ),
                   buildSortItem(
                     'artist',
-                    'Artist (A to Z)',
+                    FlowStrings.get('sort_artist_az'),
                     Icons.person_search_rounded,
                   ),
                   buildSortItem(
                     'duration_longest',
-                    'Duration (Longest first)',
+                    FlowStrings.get('sort_duration_longest'),
                     Icons.hourglass_top_rounded,
                   ),
                   buildSortItem(
                     'duration_shortest',
-                    'Duration (Shortest first)',
+                    FlowStrings.get('sort_duration_shortest'),
                     Icons.hourglass_bottom_rounded,
                   ),
                   const SizedBox(height: 16),
@@ -1018,7 +1162,7 @@ extension _ModalsTrackUI on _MainScreenState {
           return '${mb.toStringAsFixed(2)} MB';
         }
       } catch (_) {}
-      return 'Unknown';
+      return FlowStrings.get('unknown_literal');
     }
 
     showModalBottomSheet(
@@ -1045,7 +1189,7 @@ extension _ModalsTrackUI on _MainScreenState {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Song Info',
+                      FlowStrings.get('song_info'),
                       style: TextStyle(
                         color: isLight ? const Color(0xFF1A1A1A) : Colors.white,
                         fontSize: 18,
@@ -1130,17 +1274,22 @@ extension _ModalsTrackUI on _MainScreenState {
                   ),
                 ),
                 const SizedBox(height: 20),
-                _buildInfoRow(context, 'File Name', fileName, isLight),
                 _buildInfoRow(
                   context,
-                  'Format',
+                  FlowStrings.get('file_name'),
+                  fileName,
+                  isLight,
+                ),
+                _buildInfoRow(
+                  context,
+                  FlowStrings.get('format'),
                   format,
                   isLight,
                   isBadge: true,
                 ),
                 _buildInfoRow(
                   context,
-                  'Duration',
+                  FlowStrings.get('sort_duration'),
                   formatDuration(track.duration),
                   isLight,
                 ),
@@ -1149,15 +1298,15 @@ extension _ModalsTrackUI on _MainScreenState {
                   builder: (context, snapshot) {
                     return _buildInfoRow(
                       context,
-                      'Size',
-                      snapshot.data ?? 'Loading...',
+                      FlowStrings.get('size'),
+                      snapshot.data ?? FlowStrings.get('loading'),
                       isLight,
                     );
                   },
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'File Path',
+                  FlowStrings.get('file_path'),
                   style: TextStyle(
                     color: isLight ? Colors.black38 : Colors.white38,
                     fontSize: 12,
@@ -1238,7 +1387,7 @@ extension _ModalsTrackUI on _MainScreenState {
                         color: isLight ? Colors.black87 : Colors.white,
                       ),
                       label: Text(
-                        'Edit Metadata',
+                        FlowStrings.get('edit_metadata'),
                         style: TextStyle(
                           color: isLight ? Colors.black87 : Colors.white,
                           fontSize: 13,
@@ -1339,7 +1488,7 @@ extension _ModalsTrackUI on _MainScreenState {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Text(
-                  'Select Image Source',
+                  FlowStrings.get('select_image_source'),
                   style: TextStyle(
                     color: isLight ? const Color(0xFF1A1A1A) : Colors.white,
                     fontSize: 18,
@@ -1349,14 +1498,25 @@ extension _ModalsTrackUI on _MainScreenState {
                 ),
               ),
               const SizedBox(height: 24),
-              _buildOptionItem(Icons.photo_library, 'Choose from Gallery', () {
-                Navigator.pop(context, 'gallery');
-              }),
+              _buildOptionItem(
+                Icons.photo_library,
+                FlowStrings.get('choose_from_gallery'),
+                () {
+                  Navigator.pop(context, 'gallery');
+                },
+              ),
               _buildOptionItem(
                 Icons.music_note,
-                'Choose from Another Song',
+                FlowStrings.get('choose_from_song'),
                 () {
                   Navigator.pop(context, 'song');
+                },
+              ),
+              _buildOptionItem(
+                Icons.no_photography_outlined,
+                FlowStrings.get('remove_custom_cover'),
+                () {
+                  Navigator.pop(context, 'reset');
                 },
               ),
               const SizedBox(height: 16),
@@ -1373,6 +1533,8 @@ extension _ModalsTrackUI on _MainScreenState {
       } else if (source == 'song') {
         if (!context.mounted) return null;
         return await _showSongCoverPicker(context);
+      } else if (source == 'reset') {
+        return 'reset';
       }
       return null;
     });

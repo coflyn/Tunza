@@ -24,6 +24,7 @@ import 'widgets/custom_track_shape.dart';
 
 import 'screens/settings_screen.dart';
 import 'utils/globals.dart';
+import 'utils/artwork_cache.dart';
 part 'ui/player_ui.dart';
 part 'ui/detail_views_ui.dart';
 part 'ui/tabs_ui.dart';
@@ -127,56 +128,61 @@ class FlowApp extends StatelessWidget {
                         return ValueListenableBuilder<double>(
                           valueListenable: fontScaleNotifier,
                           builder: (context, scale, child) {
-                            return MaterialApp(
-                              title: 'Flow',
-                              debugShowCheckedModeBanner: false,
-                              builder: (context, child) {
-                                return MediaQuery(
-                                  data: MediaQuery.of(
-                                    context,
-                                  ).copyWith(textScaleFactor: scale),
-                                  child: child!,
+                            return ValueListenableBuilder<String>(
+                              valueListenable: languageNotifier,
+                              builder: (context, lang, child) {
+                                return MaterialApp(
+                                  title: 'Flow',
+                                  debugShowCheckedModeBanner: false,
+                                  builder: (context, child) {
+                                    return MediaQuery(
+                                      data: MediaQuery.of(
+                                        context,
+                                      ).copyWith(textScaleFactor: scale),
+                                      child: child!,
+                                    );
+                                  },
+                                  theme: ThemeData(
+                                    useMaterial3: true,
+                                    brightness: isLight
+                                        ? Brightness.light
+                                        : Brightness.dark,
+                                    scaffoldBackgroundColor: appBgColor,
+                                    textTheme: textTheme.apply(
+                                      bodyColor: isLight
+                                          ? const Color(0xFF1A1A1A)
+                                          : Colors.white,
+                                      displayColor: isLight
+                                          ? const Color(0xFF1A1A1A)
+                                          : Colors.white,
+                                    ),
+                                    colorScheme: ColorScheme(
+                                      brightness: isLight
+                                          ? Brightness.light
+                                          : Brightness.dark,
+                                      primary: const Color(0xFF1DB954),
+                                      onPrimary: Colors.black,
+                                      secondary: const Color(0xFF1DB954),
+                                      onSecondary: Colors.black,
+                                      error: Colors.red,
+                                      onError: Colors.white,
+                                      surface: appCardColor,
+                                      onSurface: isLight
+                                          ? const Color(0xFF1A1A1A)
+                                          : Colors.white,
+                                      outline: isLight
+                                          ? Colors.black12
+                                          : Colors.white10,
+                                    ),
+                                    listTileTheme: ListTileThemeData(
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                    ),
+                                  ),
+                                  home: const MainScreen(),
                                 );
                               },
-                              theme: ThemeData(
-                                useMaterial3: true,
-                                brightness: isLight
-                                    ? Brightness.light
-                                    : Brightness.dark,
-                                scaffoldBackgroundColor: appBgColor,
-                                textTheme: textTheme.apply(
-                                  bodyColor: isLight
-                                      ? const Color(0xFF1A1A1A)
-                                      : Colors.white,
-                                  displayColor: isLight
-                                      ? const Color(0xFF1A1A1A)
-                                      : Colors.white,
-                                ),
-                                colorScheme: ColorScheme(
-                                  brightness: isLight
-                                      ? Brightness.light
-                                      : Brightness.dark,
-                                  primary: const Color(0xFF1DB954),
-                                  onPrimary: Colors.black,
-                                  secondary: const Color(0xFF1DB954),
-                                  onSecondary: Colors.black,
-                                  error: Colors.red,
-                                  onError: Colors.white,
-                                  surface: appCardColor,
-                                  onSurface: isLight
-                                      ? const Color(0xFF1A1A1A)
-                                      : Colors.white,
-                                  outline: isLight
-                                      ? Colors.black12
-                                      : Colors.white10,
-                                ),
-                                listTileTheme: ListTileThemeData(
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                ),
-                              ),
-                              home: const MainScreen(),
                             );
                           },
                         );
@@ -230,6 +236,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   bool _filterShortAudio = false;
   bool _autoRegexClean = false;
   int _crossfadeDuration = 200;
+  int _playRequestId = 0;
   bool _pauseOnDisconnect = true;
   bool _autoPlayAfterCall = true;
   bool _playTogether = false;
@@ -247,7 +254,6 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   final Set<String> _animatedPlaylistIds = {};
   final Set<String> _animatedArtistIds = {};
   final Set<String> _animatedAlbumIds = {};
-  final Set<String> _animatedDetailTrackIds = {};
 
   List<Track> _allTracks = [];
   bool _isLoading = true;
@@ -379,6 +385,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
 
   Widget? _lastDetailView;
   String? _cachedDetailKey;
+  String? _cachedDetailBaseKey;
   List<Track>? _cachedDetailSongs;
   Widget? _cachedDetailImage;
   bool _isFading = false;
@@ -397,7 +404,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       session.becomingNoisyEventStream.listen((_) {
         if (_pauseOnDisconnect && _audioPlayer.playing) {
           _pauseWithFade();
-          showFlowToast("Headphones unplugged. Paused.");
+          showFlowToast(FlowStrings.get('toast_headphones_unplugged'));
         }
       });
 

@@ -9,6 +9,7 @@ import 'package:on_audio_query/on_audio_query.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../main.dart';
 import '../utils/globals.dart';
 
@@ -17,6 +18,7 @@ part 'settings_modals.dart';
 
 class SettingsScreen extends StatefulWidget {
   final VoidCallback onRescanLibrary;
+  final VoidCallback onSettingsChanged;
   final Function(int) onSetSleepTimer;
   final VoidCallback onResetData;
   final ValueNotifier<int> sleepTimerNotifier;
@@ -66,10 +68,12 @@ class SettingsScreen extends StatefulWidget {
   final String customThemeStyle;
   final ValueNotifier<String> customThemeStyleNotifier;
   final Function(String) onSetCustomThemeStyle;
+  final Function(bool) onSetSkipSilence;
 
   const SettingsScreen({
     super.key,
     required this.onRescanLibrary,
+    required this.onSettingsChanged,
     required this.onSetSleepTimer,
     required this.onResetData,
     required this.sleepTimerNotifier,
@@ -119,6 +123,7 @@ class SettingsScreen extends StatefulWidget {
     required this.customThemeStyle,
     required this.customThemeStyleNotifier,
     required this.onSetCustomThemeStyle,
+    required this.onSetSkipSilence,
   });
 
   @override
@@ -135,6 +140,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   int _playCountThreshold = 10;
   String _activeFont = 'Plus Jakarta Sans';
   double _fontScale = 1.0;
+  String _language = 'en';
   bool _skipSilence = false;
   bool _stopOnLowBattery = false;
   bool _monoAudio = false;
@@ -206,7 +212,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _checkForUpdates() async {
-    showFlowToast("Checking for updates...");
+    showFlowToast(FlowStrings.get('checking_updates'));
     try {
       final client = HttpClient();
       client.userAgent = 'Flow-App';
@@ -242,7 +248,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     SizedBox(width: 12),
                     Text(
-                      'Update Available!',
+                      FlowStrings.get('update_available'),
                       style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
@@ -255,12 +261,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'A new version of Flow is available.',
+                      FlowStrings.get('new_version_available'),
                       style: TextStyle(color: Colors.white70),
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      'Current Version: v$currentVersion\nLatest Version: $latestVersionTag',
+                      '${FlowStrings.get('current_version')}: v$currentVersion\n${FlowStrings.get('latest_version')}: $latestVersionTag',
                       style: const TextStyle(
                         color: Colors.white54,
                         fontFamily: 'monospace',
@@ -271,9 +277,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(context),
-                    child: const Text(
-                      'Later',
-                      style: TextStyle(color: Colors.white54),
+                    child: Text(
+                      FlowStrings.get('later'),
+                      style: const TextStyle(color: Colors.white54),
                     ),
                   ),
                   TextButton(
@@ -286,11 +292,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           mode: LaunchMode.externalApplication,
                         );
                       } catch (_) {
-                        showFlowToast("Could not open update page");
+                        showFlowToast(FlowStrings.get('could_not_open_update'));
                       }
                     },
                     child: Text(
-                      'Download',
+                      FlowStrings.get('download'),
                       style: TextStyle(
                         color: _activeAccentColor,
                         fontWeight: FontWeight.bold,
@@ -302,13 +308,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
           );
         } else {
-          showFlowToast("Flow is up to date! (v$currentVersion)");
+          showFlowToast(
+            '${FlowStrings.get('flow_up_to_date')} (v$currentVersion)',
+          );
         }
       } else {
-        showFlowToast("Unable to check for updates");
+        showFlowToast(FlowStrings.get('unable_check_updates'));
       }
     } catch (_) {
-      showFlowToast("Network error checking for updates");
+      showFlowToast(FlowStrings.get('network_error'));
     }
   }
 
@@ -347,6 +355,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _playCountThreshold = prefs.getInt('playCountThreshold') ?? 10;
       _activeFont = prefs.getString('activeFont') ?? 'Plus Jakarta Sans';
       _fontScale = prefs.getDouble('fontScale') ?? 1.0;
+      _language = prefs.getString('language') ?? 'en';
       _skipSilence = prefs.getBool('skipSilence') ?? false;
       _stopOnLowBattery = prefs.getBool('stopOnLowBattery') ?? false;
       _monoAudio = monoAudio;
@@ -375,13 +384,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _saveBool(String key, bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(key, value);
-    widget.onRescanLibrary(); // Trigger reload
+    widget
+        .onSettingsChanged(); // Trigger reload of settings without full library rescan
   }
 
   Future<void> _saveInt(String key, int value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(key, value);
-    widget.onRescanLibrary(); // Trigger reload
+    widget
+        .onSettingsChanged(); // Trigger reload of settings without full library rescan
   }
 
   Future<void> _saveDouble(String key, double value) async {
@@ -412,7 +423,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'Settings',
+          FlowStrings.get('settings'),
           style: TextStyle(
             fontWeight: FontWeight.w700,
             fontSize: 18,
@@ -424,12 +435,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
         physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         children: [
-          _buildSectionHeader('App Customization'),
+          _buildSectionHeader(FlowStrings.get('appearance')),
           _buildPremiumCard(
             children: [
               _buildPremiumListTile(
+                icon: Icons.language_rounded,
+                title: FlowStrings.get('language'),
+                subtitle: _language == 'id'
+                    ? FlowStrings.get('language_id')
+                    : _language == 'ja'
+                    ? FlowStrings.get('language_ja')
+                    : FlowStrings.get('language_en'),
+                onTap: () => _showLanguageSelectionDialog(),
+              ),
+              const Divider(color: Colors.white10, height: 1),
+              _buildPremiumListTile(
                 icon: Icons.font_download_outlined,
-                title: 'Typography & Font Size',
+                title: FlowStrings.get('typography_font_size'),
                 subtitle:
                     '${_activeFont == 'Spotify Style'
                         ? 'Figtree'
@@ -441,7 +463,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const Divider(color: Colors.white10, height: 1),
               _buildPremiumListTile(
                 icon: Icons.palette_outlined,
-                title: 'Theme Accent Color',
+                title: FlowStrings.get('theme_accent_color'),
                 subtitle: _getThemeAccentLabel(_selectedThemeAccent),
                 onTap: () => _showThemeAccentSelectionDialog(),
               ),
@@ -452,7 +474,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     : _selectedThemeMode == 'custom'
                     ? Icons.color_lens_outlined
                     : Icons.dark_mode_outlined,
-                title: 'Theme Mode',
+                title: FlowStrings.get('theme_mode'),
                 subtitle: _getThemeModeLabel(_selectedThemeMode),
                 onTap: () => _showThemeModeSelectionDialog(),
               ),
@@ -470,7 +492,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'CUSTOM THEME BACKGROUND',
+                        FlowStrings.get('custom_theme_bg').toUpperCase(),
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
@@ -495,37 +517,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             const SizedBox(width: 10),
                             _buildCustomBgOption(
                               id: 'custom_image',
-                              name: 'Custom Image',
+                              name: FlowStrings.get('bg_custom_image'),
                               color: const Color(0xFF8E8E93),
                             ),
                             const SizedBox(width: 10),
                             _buildCustomBgOption(
                               id: 'navy',
-                              name: 'Deep Navy',
+                              name: FlowStrings.get('bg_deep_navy'),
                               color: const Color(0xFF0B132B),
                             ),
                             const SizedBox(width: 10),
                             _buildCustomBgOption(
                               id: 'forest',
-                              name: 'Forest Green',
+                              name: FlowStrings.get('bg_forest_green'),
                               color: const Color(0xFF0D1F1D),
                             ),
                             const SizedBox(width: 10),
                             _buildCustomBgOption(
                               id: 'wine',
-                              name: 'Midnight Wine',
+                              name: FlowStrings.get('bg_midnight_wine'),
                               color: const Color(0xFF1A0F1A),
                             ),
                             const SizedBox(width: 10),
                             _buildCustomBgOption(
                               id: 'terracotta',
-                              name: 'Sunset Terracotta',
+                              name: FlowStrings.get('bg_sunset_terracotta'),
                               color: const Color(0xFF211510),
                             ),
                             const SizedBox(width: 10),
                             _buildCustomBgOption(
                               id: 'slate',
-                              name: 'Slate Gray-Blue',
+                              name: FlowStrings.get('bg_slate_gray_blue'),
                               color: const Color(0xFF1C2541),
                             ),
                           ],
@@ -553,7 +575,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            'Theme Wallpaper Settings',
+                            FlowStrings.get('theme_wallpaper_settings'),
                             style: TextStyle(
                               color: _activeAccentColor,
                               fontWeight: FontWeight.bold,
@@ -575,7 +597,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               size: 14,
                             ),
                             label: Text(
-                              'Change Photo',
+                              FlowStrings.get('change_photo'),
                               style: TextStyle(
                                 fontSize: 12,
                                 fontFamily: _activeFont,
@@ -598,7 +620,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 });
                                 widget.onSetCustomThemeBgPath(image.path);
                                 showFlowToast(
-                                  'Custom theme wallpaper updated!',
+                                  FlowStrings.get(
+                                    'custom_theme_wallpaper_updated',
+                                  ),
                                 );
                               }
                             },
@@ -810,7 +834,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         const SizedBox(height: 16),
                         // Overlay Theme Style Selector
                         Text(
-                          'Overlay Theme Style',
+                          FlowStrings.get('overlay_theme_style'),
                           style: TextStyle(
                             color: isLight ? Colors.black54 : Colors.white70,
                             fontSize: 13,
@@ -836,7 +860,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              'Blur Level',
+                              FlowStrings.get('blur_level'),
                               style: TextStyle(
                                 color: isLight
                                     ? Colors.black54
@@ -877,7 +901,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              'Dim Level',
+                              FlowStrings.get('dim_level'),
                               style: TextStyle(
                                 color: isLight
                                     ? Colors.black54
@@ -918,7 +942,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              'Zoom Scale',
+                              FlowStrings.get('zoom_scale'),
                               style: TextStyle(
                                 color: isLight
                                     ? Colors.black54
@@ -959,7 +983,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              'Pan Horizontal (X)',
+                              FlowStrings.get('pan_horizontal'),
                               style: TextStyle(
                                 color: isLight
                                     ? Colors.black54
@@ -1001,7 +1025,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              'Pan Vertical (Y)',
+                              FlowStrings.get('pan_vertical'),
                               style: TextStyle(
                                 color: isLight
                                     ? Colors.black54
@@ -1042,7 +1066,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         const SizedBox(height: 12),
                         Center(
                           child: Text(
-                            'No custom wallpaper selected.\nTap "Change Photo" to pick one from gallery!',
+                            FlowStrings.get('no_wallpaper'),
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               color: isLight ? Colors.black54 : Colors.white54,
@@ -1059,7 +1083,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const Divider(color: Colors.white10, height: 1),
               _buildPremiumListTile(
                 icon: Icons.wallpaper_outlined,
-                title: 'Player Background Style',
+                title: FlowStrings.get('player_background'),
                 subtitle: _getPlayerBackgroundStyleLabel(
                   _playerBackgroundStyle,
                 ),
@@ -1080,7 +1104,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            'Wallpaper Settings',
+                            FlowStrings.get('wallpaper_settings'),
                             style: TextStyle(
                               color: _activeAccentColor,
                               fontWeight: FontWeight.bold,
@@ -1100,7 +1124,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               size: 14,
                             ),
                             label: Text(
-                              'Change Photo',
+                              FlowStrings.get('change_photo'),
                               style: TextStyle(
                                 fontSize: 12,
                                 fontFamily: _activeFont,
@@ -1123,7 +1147,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 });
                                 widget.onSetPlayerCustomBgPath(image.path);
                                 showFlowToast(
-                                  'Custom wallpaper background updated!',
+                                  FlowStrings.get('wallpaper_updated'),
                                 );
                               }
                             },
@@ -1270,9 +1294,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
-                            'Blur Level',
-                            style: TextStyle(
+                          Text(
+                            FlowStrings.get('blur_level'),
+                            style: const TextStyle(
                               color: Colors.white70,
                               fontSize: 13,
                             ),
@@ -1303,9 +1327,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
-                            'Dim Level',
-                            style: TextStyle(
+                          Text(
+                            FlowStrings.get('dim_level'),
+                            style: const TextStyle(
                               color: Colors.white70,
                               fontSize: 13,
                             ),
@@ -1336,9 +1360,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
-                            'Zoom Scale',
-                            style: TextStyle(
+                          Text(
+                            FlowStrings.get('zoom_scale'),
+                            style: const TextStyle(
                               color: Colors.white70,
                               fontSize: 13,
                             ),
@@ -1369,9 +1393,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
-                            'Pan Horizontal (X)',
-                            style: TextStyle(
+                          Text(
+                            FlowStrings.get('pan_horizontal'),
+                            style: const TextStyle(
                               color: Colors.white70,
                               fontSize: 13,
                             ),
@@ -1403,9 +1427,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
-                            'Pan Vertical (Y)',
-                            style: TextStyle(
+                          Text(
+                            FlowStrings.get('pan_vertical'),
+                            style: const TextStyle(
                               color: Colors.white70,
                               fontSize: 13,
                             ),
@@ -1439,7 +1463,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ],
           ),
-          _buildSectionHeader('Audio & Playback'),
+          _buildSectionHeader(FlowStrings.get('audio_playback')),
           _buildPremiumCard(
             children: [
               ValueListenableBuilder<int>(
@@ -1453,10 +1477,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   final secs = (remaining % 60).toString().padLeft(2, '0');
                   return _buildPremiumListTile(
                     icon: Icons.timer_outlined,
-                    title: 'Sleep Timer',
+                    title: FlowStrings.get('sleep_timer'),
                     subtitle: isActive
-                        ? 'Stops in $mins:$secs'
-                        : 'Stop audio after a set time',
+                        ? '${FlowStrings.get('stops_in')} $mins:$secs'
+                        : FlowStrings.get('sleep_timer_subtitle'),
                     isActive: isActive,
                     trailing: isActive
                         ? IconButton(
@@ -1476,7 +1500,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               _buildPremiumListTile(
                 icon: Icons.compare_arrows_rounded,
-                title: 'Audio Crossfade',
+                title: FlowStrings.get('audio_crossfade'),
                 subtitle: '${_crossfadeDuration}ms',
                 trailing: SizedBox(
                   width: 140,
@@ -1511,8 +1535,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               _buildPremiumSwitchTile(
                 icon: Icons.headset_off_outlined,
-                title: 'Pause on Disconnect',
-                subtitle: 'Pause music when headphones are removed',
+                title: FlowStrings.get('pause_on_disconnect'),
+                subtitle: FlowStrings.get('pause_on_disconnect_subtitle'),
                 value: _pauseOnDisconnect,
                 onChanged: (val) {
                   setState(() => _pauseOnDisconnect = val);
@@ -1521,8 +1545,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               _buildPremiumSwitchTile(
                 icon: Icons.call_missed_outgoing_rounded,
-                title: 'Resume after Call',
-                subtitle: 'Auto play music when a call ends',
+                title: FlowStrings.get('resume_after_call'),
+                subtitle: FlowStrings.get('resume_after_call_subtitle'),
                 value: _autoPlayAfterCall,
                 onChanged: (val) {
                   setState(() => _autoPlayAfterCall = val);
@@ -1531,8 +1555,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               _buildPremiumSwitchTile(
                 icon: Icons.layers_rounded,
-                title: 'Play Together with other Apps',
-                subtitle: 'Allow Flow to play audio alongside other apps',
+                title: FlowStrings.get('play_together'),
+                subtitle: FlowStrings.get('play_together_subtitle'),
                 value: _playTogether,
                 onChanged: (val) {
                   setState(() => _playTogether = val);
@@ -1542,18 +1566,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               _buildPremiumSwitchTile(
                 icon: Icons.content_cut_rounded,
-                title: 'Silence Trimmer',
-                subtitle: 'Skip silent periods in audio tracks',
+                title: FlowStrings.get('silence_trimmer'),
+                subtitle: FlowStrings.get('silence_trimmer_subtitle'),
                 value: _skipSilence,
                 onChanged: (val) {
                   setState(() => _skipSilence = val);
                   _saveBool('skipSilence', val);
+                  widget.onSetSkipSilence(val);
+                  showFlowToast(
+                    val
+                        ? FlowStrings.get('silence_enabled_toast')
+                        : FlowStrings.get('silence_disabled_toast'),
+                  );
                 },
               ),
               _buildPremiumSwitchTile(
                 icon: Icons.battery_saver_rounded,
-                title: 'Stop Playback on Low Battery',
-                subtitle: 'Pause music when battery falls below 15%',
+                title: FlowStrings.get('stop_on_low_battery'),
+                subtitle: FlowStrings.get('stop_on_low_battery_subtitle'),
                 value: _stopOnLowBattery,
                 onChanged: (val) {
                   setState(() => _stopOnLowBattery = val);
@@ -1562,8 +1592,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               _buildPremiumSwitchTile(
                 icon: Icons.hearing_rounded,
-                title: 'Mono Audio Toggle',
-                subtitle: 'Combine left and right audio channels',
+                title: FlowStrings.get('mono_audio'),
+                subtitle: FlowStrings.get('mono_audio_subtitle'),
                 value: _monoAudio,
                 onChanged: (val) async {
                   try {
@@ -1579,7 +1609,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       setState(() => _monoAudio = val);
                       await _saveBool('monoAudio', val);
                       showFlowToast(
-                        "Info: Flow doesn't need to be in 'Downloaded Apps'. Simply toggle the global 'Mono Audio' switch on this screen!",
+                        FlowStrings.get('mono_audio_info'),
                         isLong: true,
                       );
                     } else {
@@ -1588,12 +1618,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       if (e is PlatformException &&
                           e.code == 'PERMISSION_DENIED') {
                         showFlowToast(
-                          "Please grant Flow permission to modify system settings to toggle Mono Audio",
+                          FlowStrings.get('mono_audio_permission'),
                           isLong: true,
                         );
                       } else {
                         showFlowToast(
-                          "Mono Audio is not supported on this device",
+                          FlowStrings.get('mono_audio_not_supported'),
                           isLong: true,
                         );
                       }
@@ -1603,34 +1633,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               _buildPremiumListTile(
                 icon: Icons.equalizer_rounded,
-                title: 'Equalizer',
-                subtitle: 'Adjust sound effects and audio frequency',
+                title: FlowStrings.get('equalizer'),
+                subtitle: FlowStrings.get('equalizer_subtitle'),
                 onTap: () {
                   MainScreen.showEqualizer(context);
                 },
               ),
               _buildPremiumListTile(
                 icon: Icons.bar_chart_rounded,
-                title: 'Most Played Threshold',
+                title: FlowStrings.get('most_played_threshold'),
                 subtitle: _getThresholdLabel(_playCountThreshold),
                 onTap: () => _showThresholdDialog(),
               ),
             ],
           ),
-          _buildSectionHeader('Library & Storage'),
+          _buildSectionHeader(FlowStrings.get('library_storage')),
           _buildPremiumCard(
             children: [
               _buildPremiumSwitchTile(
                 icon: Icons.auto_fix_high,
-                title: 'Auto Regex Cleaner',
-                subtitle: 'Automatically clean messy song titles',
+                title: FlowStrings.get('auto_regex_cleaner'),
+                subtitle: FlowStrings.get('auto_regex_subtitle'),
                 value: _autoRegexClean,
                 onChanged: (val) {
                   setState(() => _autoRegexClean = val);
                   _saveBool('autoRegexClean', val);
                   if (val) {
                     showFlowToast(
-                      "Rescan library to apply title cleaning to existing songs",
+                      FlowStrings.get('rescan_to_apply'),
                       isLong: true,
                     );
                   }
@@ -1638,26 +1668,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               _buildPremiumSwitchTile(
                 icon: Icons.filter_alt_outlined,
-                title: 'Filter Short Audio',
-                subtitle: 'Hide tracks shorter than 30 seconds',
+                title: FlowStrings.get('filter_short_audio'),
+                subtitle: FlowStrings.get('filter_short_subtitle'),
                 value: _filterShortAudio,
                 onChanged: (val) {
                   setState(() => _filterShortAudio = val);
                   _saveBool('filterShortAudio', val);
+                  widget.onRescanLibrary(); // Needs immediate rescan to filter
                 },
               ),
               _buildPremiumListTile(
                 icon: Icons.folder_outlined,
-                title: 'Specific Folder Scan',
-                subtitle: 'Only scan specific directories',
+                title: FlowStrings.get('specific_folder_scan'),
+                subtitle: FlowStrings.get('specific_folder_subtitle'),
                 onTap: () {
                   widget.onManageFolders();
                 },
               ),
               _buildPremiumListTile(
                 icon: Icons.visibility_off_outlined,
-                title: 'Hidden Tracks',
-                subtitle: 'Manage hidden and filtered tracks',
+                title: FlowStrings.get('hidden_tracks'),
+                subtitle: FlowStrings.get('hidden_tracks_subtitle'),
                 onTap: () async {
                   _songsFuture = OnAudioQuery().querySongs(
                     sortType: SongSortType.TITLE,
@@ -1671,8 +1702,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               _buildPremiumListTile(
                 icon: Icons.sync_rounded,
-                title: 'Rescan Library',
-                subtitle: 'Search for new audio files on your device',
+                title: FlowStrings.get('rescan_library'),
+                subtitle: FlowStrings.get('rescan_subtitle'),
                 onTap: () {
                   Navigator.pop(context);
                   widget.onRescanLibrary();
@@ -1680,37 +1711,49 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               _buildPremiumListTile(
                 icon: Icons.cleaning_services_outlined,
-                title: 'Clear Image Cache',
-                subtitle: 'Free up memory used by album covers',
+                title: FlowStrings.get('clear_image_cache'),
+                subtitle: FlowStrings.get('clear_cache_subtitle'),
                 onTap: () {
                   PaintingBinding.instance.imageCache.clear();
                   PaintingBinding.instance.imageCache.clearLiveImages();
-                  showFlowToast("Image cache cleared");
+                  showFlowToast(FlowStrings.get('image_cache_cleared'));
                 },
               ),
               _buildPremiumListTile(
+                icon: Icons.backup_outlined,
+                title: FlowStrings.get('backup_data'),
+                subtitle: FlowStrings.get('backup_data_subtitle'),
+                onTap: () => _handleBackup(),
+              ),
+              _buildPremiumListTile(
+                icon: Icons.restore_outlined,
+                title: FlowStrings.get('restore_data'),
+                subtitle: FlowStrings.get('restore_data_subtitle'),
+                onTap: () => _handleRestore(),
+              ),
+              _buildPremiumListTile(
                 icon: Icons.delete_forever_outlined,
-                title: 'Reset App Data',
-                subtitle: 'Clear all playlists, favorites, and history',
+                title: FlowStrings.get('reset_app_data'),
+                subtitle: FlowStrings.get('reset_data_subtitle'),
                 titleColor: Colors.redAccent,
                 iconColor: Colors.redAccent,
                 onTap: () => _showResetConfirmation(),
               ),
             ],
           ),
-          _buildSectionHeader('About Flow'),
+          _buildSectionHeader(FlowStrings.get('about_flow')),
           _buildPremiumCard(
             children: [
               _buildPremiumListTile(
                 icon: Icons.update_rounded,
-                title: 'Check for Updates',
+                title: FlowStrings.get('check_updates'),
                 subtitle: 'Version 1.0.0',
                 onTap: () => _checkForUpdates(),
               ),
               _buildPremiumListTile(
                 icon: Icons.code_rounded,
-                title: 'Source Code',
-                subtitle: 'GitHub Repository',
+                title: FlowStrings.get('source_code'),
+                subtitle: FlowStrings.get('github_repo'),
                 trailing: const Icon(
                   Icons.open_in_new,
                   color: Colors.white24,
@@ -1724,18 +1767,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       mode: LaunchMode.externalApplication,
                     );
                     if (!launched) {
-                      showFlowToast("Could not open link");
+                      showFlowToast(FlowStrings.get('could_not_open_link'));
                     }
                   } catch (e) {
-                    showFlowToast("Could not open link");
+                    showFlowToast(FlowStrings.get('could_not_open_link'));
                   }
                 },
               ),
               _buildPremiumListTile(
                 icon: Icons.favorite_rounded,
                 iconColor: const Color(0xFFE91E63),
-                title: 'Support Developer',
-                subtitle: 'Donate via Sociabuzz',
+                title: FlowStrings.get('support_developer'),
+                subtitle: FlowStrings.get('donate_sociabuzz'),
                 trailing: const Icon(
                   Icons.open_in_new,
                   color: Colors.white24,
@@ -1749,10 +1792,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       mode: LaunchMode.externalApplication,
                     );
                     if (!launched) {
-                      showFlowToast("Could not open link");
+                      showFlowToast(FlowStrings.get('could_not_open_link'));
                     }
                   } catch (e) {
-                    showFlowToast("Could not open link");
+                    showFlowToast(FlowStrings.get('could_not_open_link'));
                   }
                 },
               ),

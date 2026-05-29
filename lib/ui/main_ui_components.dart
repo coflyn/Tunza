@@ -1,4 +1,4 @@
-// ignore_for_file: invalid_use_of_protected_member
+// ignore_for_file: invalid_use_of_protected_member, deprecated_member_use
 part of '../main.dart';
 
 extension _MainUIComponents on _MainScreenState {
@@ -15,13 +15,7 @@ extension _MainUIComponents on _MainScreenState {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              _currentPageIndex == 0
-                  ? 'Library'
-                  : _currentPageIndex == 1
-                  ? 'Playlists'
-                  : _currentPageIndex == 2
-                  ? 'Artists'
-                  : 'Albums',
+              'Flow',
               style: TextStyle(
                 fontSize: 32,
                 fontWeight: FontWeight.w800,
@@ -36,8 +30,8 @@ extension _MainUIComponents on _MainScreenState {
                   context,
                   MaterialPageRoute(
                     builder: (context) => SettingsScreen(
+                      onSettingsChanged: _loadSettings,
                       onRescanLibrary: () {
-                        _loadSettings();
                         _loadSettings();
                         _requestPermissionAndScan();
                       },
@@ -209,6 +203,12 @@ extension _MainUIComponents on _MainScreenState {
                         });
                         _customThemeStyleNotifier.value = style;
                       },
+                      onSetSkipSilence: (val) {
+                        setState(() {
+                          _skipSilence = val;
+                        });
+                        _audioPlayer.setSkipSilenceEnabled(val);
+                      },
                     ),
                   ),
                 );
@@ -240,8 +240,8 @@ extension _MainUIComponents on _MainScreenState {
               ),
             ),
             const SizedBox(height: 20),
-            const Text(
-              'No Local Songs Found',
+            Text(
+              FlowStrings.get('no_songs_found'),
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
@@ -250,7 +250,7 @@ extension _MainUIComponents on _MainScreenState {
             ),
             const SizedBox(height: 8),
             Text(
-              'Copy some audio files to your device storage and refresh the page.',
+              FlowStrings.get('no_songs_subtitle'),
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 13,
@@ -272,8 +272,8 @@ extension _MainUIComponents on _MainScreenState {
               ),
               onPressed: _requestPermissionAndScan,
               icon: const Icon(Icons.refresh, color: Colors.white, size: 18),
-              label: const Text(
-                'Refresh Library',
+              label: Text(
+                FlowStrings.get('refresh_library'),
                 style: TextStyle(color: Colors.white, fontSize: 13),
               ),
             ),
@@ -303,13 +303,13 @@ extension _MainUIComponents on _MainScreenState {
           _searchController.clear();
 
           List<Track> pSongs = [];
-          if (title == 'Favourites') {
+          if (title == FlowStrings.get('favourites')) {
             pSongs = _allTracks
                 .where((t) => _favoriteTrackIds.contains(t.id))
                 .toList();
-          } else if (title == 'Recently Added') {
+          } else if (title == FlowStrings.get('recently_added')) {
             pSongs = List.from(_allTracks);
-          } else if (title == 'Last Played') {
+          } else if (title == FlowStrings.get('last_played')) {
             pSongs = _lastPlayedTrackIds
                 .map(
                   (id) => _allTracks.firstWhere(
@@ -319,7 +319,7 @@ extension _MainUIComponents on _MainScreenState {
                 )
                 .where((t) => _lastPlayedTrackIds.contains(t.id))
                 .toList();
-          } else if (title == 'Most Played') {
+          } else if (title == FlowStrings.get('most_played')) {
             pSongs = List.from(_allTracks);
             pSongs.sort(
               (a, b) =>
@@ -346,13 +346,18 @@ extension _MainUIComponents on _MainScreenState {
                 image: DecorationImage(
                   image: ResizeImage(
                     FileImage(File(_playlistCovers[title]!)),
-                    width: 600,
+                    width: 150,
                   ),
                   fit: BoxFit.cover,
                 ),
               ),
             )
-          : _buildStackedArtwork(songs, color, icon, title == 'Favourites'),
+          : _buildStackedArtwork(
+              songs,
+              color,
+              icon,
+              title == FlowStrings.get('favourites'),
+            ),
       title: Text(
         title,
         style: TextStyle(
@@ -538,9 +543,9 @@ extension _MainUIComponents on _MainScreenState {
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: Row(
                     children: [
-                      const Text(
-                        'Up Next',
-                        style: TextStyle(
+                      Text(
+                        FlowStrings.get('up_next'),
+                        style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
@@ -570,12 +575,16 @@ extension _MainUIComponents on _MainScreenState {
                     physics: const BouncingScrollPhysics(),
                     itemCount: effectiveIndices.length,
                     onReorder: (oldIndex, newIndex) {
-                      if (oldIndex == 0)
+                      if (oldIndex == 0) {
                         return; // Cannot move currently playing track
-                      if (oldIndex < newIndex) newIndex -= 1;
-                      if (newIndex == 0)
+                      }
+                      if (oldIndex < newIndex) {
+                        newIndex -= 1;
+                      }
+                      if (newIndex == 0) {
                         newIndex =
                             1; // Cannot move above currently playing track
+                      }
 
                       setModalState(() {
                         final item = effectiveIndices.removeAt(oldIndex);

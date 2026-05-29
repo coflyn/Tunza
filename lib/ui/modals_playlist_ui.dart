@@ -76,7 +76,17 @@ extension _ModalsPlaylistUI on _MainScreenState {
                                         _saveUserPlaylists();
                                       });
                                       showFlowToast(
-                                        "Added ${selectedTrackIds.length} songs to $predefinedTargetPlaylist",
+                                        FlowStrings.get(
+                                              'toast_added_songs_to_simple',
+                                            )
+                                            .replaceFirst(
+                                              '{}',
+                                              '${selectedTrackIds.length}',
+                                            )
+                                            .replaceFirst(
+                                              '{}',
+                                              predefinedTargetPlaylist,
+                                            ),
                                       );
                                     } else {
                                       _showAddToPlaylistModal(
@@ -87,8 +97,8 @@ extension _ModalsPlaylistUI on _MainScreenState {
                                   },
                             child: Text(
                               predefinedTargetPlaylist != null
-                                  ? 'Save'
-                                  : 'Next',
+                                  ? FlowStrings.get('save')
+                                  : FlowStrings.get('next'),
                               style: TextStyle(
                                 color: selectedTrackIds.isEmpty
                                     ? (isLight
@@ -234,7 +244,7 @@ extension _ModalsPlaylistUI on _MainScreenState {
                         children: [
                           Expanded(
                             child: Text(
-                              'Edit "$playlistName"',
+                              '${FlowStrings.get('edit_playlist_title')} "$playlistName"',
                               style: TextStyle(
                                 color: isLight
                                     ? const Color(0xFF1A1A1A)
@@ -252,7 +262,7 @@ extension _ModalsPlaylistUI on _MainScreenState {
                               Navigator.pop(context);
                             },
                             child: Text(
-                              'Done',
+                              FlowStrings.get('done'),
                               style: TextStyle(
                                 color: _activeAccentColor,
                                 fontWeight: FontWeight.bold,
@@ -293,7 +303,7 @@ extension _ModalsPlaylistUI on _MainScreenState {
                               color: isLight ? Colors.black87 : Colors.white,
                             ),
                             label: Text(
-                              'Add Songs',
+                              FlowStrings.get('add_songs'),
                               style: TextStyle(
                                 color: isLight ? Colors.black87 : Colors.white,
                                 fontSize: 12,
@@ -332,7 +342,9 @@ extension _ModalsPlaylistUI on _MainScreenState {
                                     });
                                   },
                             child: Text(
-                              isAllSelected ? 'Deselect All' : 'Select All',
+                              isAllSelected
+                                  ? FlowStrings.get('deselect_all')
+                                  : FlowStrings.get('select_all'),
                               style: TextStyle(
                                 color: isLight
                                     ? Colors.black54
@@ -354,7 +366,9 @@ extension _ModalsPlaylistUI on _MainScreenState {
                                             ? const Color(0xFFF0F0F3)
                                             : const Color(0xFF1E1E1E),
                                         title: Text(
-                                          'Remove Songs?',
+                                          FlowStrings.get(
+                                            'remove_songs_confirm',
+                                          ),
                                           style: TextStyle(
                                             color: isLight
                                                 ? const Color(0xFF1A1A1A)
@@ -363,7 +377,7 @@ extension _ModalsPlaylistUI on _MainScreenState {
                                           ),
                                         ),
                                         content: Text(
-                                          'Are you sure you want to remove ${selectedForDeletion.length} songs from "$playlistName"?',
+                                          FlowStrings.get('remove_songs_body'),
                                           style: TextStyle(
                                             color: isLight
                                                 ? Colors.black54
@@ -375,7 +389,7 @@ extension _ModalsPlaylistUI on _MainScreenState {
                                           TextButton(
                                             onPressed: () => Navigator.pop(ctx),
                                             child: Text(
-                                              'Cancel',
+                                              FlowStrings.get('cancel'),
                                               style: TextStyle(
                                                 color: isLight
                                                     ? Colors.black38
@@ -401,11 +415,13 @@ extension _ModalsPlaylistUI on _MainScreenState {
                                                 context,
                                               ); // Close sheet
                                               showFlowToast(
-                                                'Removed ${selectedForDeletion.length} songs',
+                                                FlowStrings.get(
+                                                  'removed_songs_toast',
+                                                ),
                                               );
                                             },
                                             child: Text(
-                                              'Remove',
+                                              FlowStrings.get('remove'),
                                               style: TextStyle(
                                                 color: Colors.redAccent,
                                                 fontWeight: FontWeight.bold,
@@ -423,7 +439,7 @@ extension _ModalsPlaylistUI on _MainScreenState {
                                   ? Colors.redAccent
                                   : (isLight ? Colors.black12 : Colors.white24),
                             ),
-                            tooltip: 'Delete Selected',
+                            tooltip: FlowStrings.get('delete'),
                           ),
                         ],
                       ),
@@ -438,7 +454,7 @@ extension _ModalsPlaylistUI on _MainScreenState {
                       child: playlistSongs.isEmpty
                           ? Center(
                               child: Text(
-                                'No songs in playlist',
+                                FlowStrings.get('no_songs_in_playlist'),
                                 style: TextStyle(
                                   color: isLight
                                       ? Colors.black38
@@ -540,7 +556,7 @@ extension _ModalsPlaylistUI on _MainScreenState {
                   Padding(
                     padding: const EdgeInsets.all(16.0),
                     child: Text(
-                      'Add to Playlist',
+                      FlowStrings.get('add_to_playlist'),
                       style: TextStyle(
                         color: isLight ? const Color(0xFF1A1A1A) : Colors.white,
                         fontSize: 18,
@@ -558,7 +574,7 @@ extension _ModalsPlaylistUI on _MainScreenState {
                   ListTile(
                     leading: Icon(Icons.add, color: _activeAccentColor),
                     title: Text(
-                      'Create New Playlist',
+                      FlowStrings.get('create_new_playlist'),
                       style: TextStyle(
                         color: _activeAccentColor,
                         fontFamily: _activeFont,
@@ -617,25 +633,36 @@ extension _ModalsPlaylistUI on _MainScreenState {
                         if (tracksToAdd.length == 1) {
                           if (skippedCount > 0) {
                             showFlowToast(
-                              "'${tracksToAdd.first.title}' is already in $playlistName",
+                              FlowStrings.get('toast_song_already_in_playlist')
+                                  .replaceFirst('{}', tracksToAdd.first.title)
+                                  .replaceFirst('{}', playlistName),
                             );
                           } else {
                             showFlowToast(
-                              "Added '${tracksToAdd.first.title}' to $playlistName",
+                              FlowStrings.get('toast_added_song_to')
+                                  .replaceFirst('{}', tracksToAdd.first.title)
+                                  .replaceFirst('{}', playlistName),
                             );
                           }
                         } else {
                           if (addedCount == 0) {
                             showFlowToast(
-                              "Selected songs are already in $playlistName",
+                              FlowStrings.get(
+                                'toast_selected_songs_already_in',
+                              ).replaceFirst('{}', playlistName),
                             );
                           } else if (skippedCount > 0) {
                             showFlowToast(
-                              "Added $addedCount songs to $playlistName ($skippedCount skipped)",
+                              FlowStrings.get('toast_added_songs_skipped')
+                                  .replaceFirst('{}', '$addedCount')
+                                  .replaceFirst('{}', playlistName)
+                                  .replaceFirst('{}', '$skippedCount'),
                             );
                           } else {
                             showFlowToast(
-                              "Added $addedCount songs to $playlistName",
+                              FlowStrings.get('toast_added_songs_to_simple')
+                                  .replaceFirst('{}', '$addedCount')
+                                  .replaceFirst('{}', playlistName),
                             );
                           }
                         }
@@ -666,7 +693,7 @@ extension _ModalsPlaylistUI on _MainScreenState {
               ? const Color(0xFFF0F0F3)
               : const Color(0xFF282828),
           title: Text(
-            'New Playlist',
+            FlowStrings.get('new_playlist'),
             style: TextStyle(
               color: isLight ? const Color(0xFF1A1A1A) : Colors.white,
               fontFamily: _activeFont,
@@ -679,7 +706,7 @@ extension _ModalsPlaylistUI on _MainScreenState {
               fontFamily: _activeFont,
             ),
             decoration: InputDecoration(
-              hintText: 'Playlist name',
+              hintText: FlowStrings.get('playlist_name_placeholder'),
               hintStyle: TextStyle(
                 color: isLight ? Colors.black38 : Colors.white54,
                 fontFamily: _activeFont,
@@ -698,7 +725,7 @@ extension _ModalsPlaylistUI on _MainScreenState {
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: Text(
-                'Cancel',
+                FlowStrings.get('cancel'),
                 style: TextStyle(
                   color: isLight ? Colors.black45 : Colors.white54,
                   fontFamily: _activeFont,
@@ -717,11 +744,15 @@ extension _ModalsPlaylistUI on _MainScreenState {
                     _saveUserPlaylists();
                   });
                   Navigator.pop(context);
-                  showFlowToast("Playlist '$name' created");
+                  showFlowToast(
+                    FlowStrings.get(
+                      'playlist_created_format',
+                    ).replaceFirst('{}', name),
+                  );
                 }
               },
               child: Text(
-                'Create',
+                FlowStrings.get('create_playlist').split(' ')[0],
                 style: TextStyle(
                   color: _activeAccentColor,
                   fontWeight: FontWeight.bold,
@@ -748,7 +779,7 @@ extension _ModalsPlaylistUI on _MainScreenState {
               ? const Color(0xFFF0F0F3)
               : const Color(0xFF282828),
           title: Text(
-            'Rename Playlist',
+            FlowStrings.get('rename_playlist'),
             style: TextStyle(
               color: isLight ? const Color(0xFF1A1A1A) : Colors.white,
               fontFamily: _activeFont,
@@ -761,7 +792,7 @@ extension _ModalsPlaylistUI on _MainScreenState {
               fontFamily: _activeFont,
             ),
             decoration: InputDecoration(
-              hintText: 'New playlist name',
+              hintText: FlowStrings.get('playlist_name_placeholder'),
               hintStyle: TextStyle(
                 color: isLight ? Colors.black38 : Colors.white54,
                 fontFamily: _activeFont,
@@ -780,7 +811,7 @@ extension _ModalsPlaylistUI on _MainScreenState {
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: Text(
-                'Cancel',
+                FlowStrings.get('cancel'),
                 style: TextStyle(
                   color: isLight ? Colors.black45 : Colors.white54,
                   fontFamily: _activeFont,
@@ -808,13 +839,13 @@ extension _ModalsPlaylistUI on _MainScreenState {
                     _saveUserPlaylists();
                   });
                   Navigator.pop(context);
-                  showFlowToast("Playlist renamed");
+                  showFlowToast(FlowStrings.get('playlist_renamed'));
                 } else if (_userPlaylists.containsKey(newName)) {
-                  showFlowToast("Playlist name already exists");
+                  showFlowToast(FlowStrings.get('playlist_name_exists'));
                 }
               },
               child: Text(
-                'Save',
+                FlowStrings.get('save'),
                 style: TextStyle(
                   color: _activeAccentColor,
                   fontWeight: FontWeight.bold,
@@ -877,38 +908,62 @@ extension _ModalsPlaylistUI on _MainScreenState {
                   ),
                 ),
                 const SizedBox(height: 24),
-                _buildOptionItem(Icons.play_arrow, 'Play all', () {
-                  Navigator.pop(context);
-                  if (songs.isNotEmpty) {
-                    _playTrack(0, sourceList: songs);
-                  } else {
-                    showFlowToast("Playlist is empty");
-                  }
-                }),
-                _buildOptionItem(Icons.queue_music, 'Add to queue', () {
-                  Navigator.pop(context);
-                  if (songs.isNotEmpty) {
-                    _playbackQueue.addAll(songs);
-                    showFlowToast("Added ${songs.length} songs to queue");
-                  }
-                }),
-                _buildOptionItem(Icons.playlist_add, 'Add to Playlist', () {
-                  Navigator.pop(context);
-                  _showMultiSelectSongsModal(context, candidateTracks: songs);
-                }),
-                _buildOptionItem(Icons.image, 'Edit cover', () async {
-                  Navigator.pop(context);
-                  final String? imagePath = await _showCoverSourceSelector(
-                    this.context,
-                  );
-                  if (imagePath != null) {
-                    setState(() {
-                      _playlistCovers[title] = imagePath;
-                    });
-                    _savePlaylistCovers();
-                    showFlowToast("Playlist cover updated");
-                  }
-                }),
+                _buildOptionItem(
+                  Icons.play_arrow,
+                  FlowStrings.get('play_all'),
+                  () {
+                    Navigator.pop(context);
+                    if (songs.isNotEmpty) {
+                      _playTrack(0, sourceList: songs);
+                    } else {
+                      showFlowToast(FlowStrings.get('playlist_empty'));
+                    }
+                  },
+                ),
+                _buildOptionItem(
+                  Icons.queue_music,
+                  FlowStrings.get('add_to_queue'),
+                  () {
+                    Navigator.pop(context);
+                    if (songs.isNotEmpty) {
+                      _playbackQueue.addAll(songs);
+                      showFlowToast(FlowStrings.get('added_songs_to_queue'));
+                    }
+                  },
+                ),
+                _buildOptionItem(
+                  Icons.playlist_add,
+                  FlowStrings.get('add_to_playlist'),
+                  () {
+                    Navigator.pop(context);
+                    _showMultiSelectSongsModal(context, candidateTracks: songs);
+                  },
+                ),
+                _buildOptionItem(
+                  Icons.image,
+                  FlowStrings.get('edit_cover'),
+                  () async {
+                    Navigator.pop(context);
+                    final String? imagePath = await _showCoverSourceSelector(
+                      this.context,
+                    );
+                    if (imagePath != null) {
+                      setState(() {
+                        if (imagePath == 'reset') {
+                          _playlistCovers.remove(title);
+                        } else {
+                          _playlistCovers[title] = imagePath;
+                        }
+                      });
+                      _savePlaylistCovers();
+                      showFlowToast(
+                        imagePath == 'reset'
+                            ? FlowStrings.get('cover_reset_success')
+                            : FlowStrings.get('playlist_cover_updated'),
+                      );
+                    }
+                  },
+                ),
                 if (isCustomPlaylist) ...[
                   Divider(
                     color: isLight
@@ -916,7 +971,7 @@ extension _ModalsPlaylistUI on _MainScreenState {
                         : Colors.white10,
                     height: 1,
                   ),
-                  _buildOptionItem(Icons.add, 'Add Songs', () {
+                  _buildOptionItem(Icons.add, FlowStrings.get('add_songs'), () {
                     Navigator.pop(context);
                     _showMultiSelectSongsModal(
                       context,
@@ -924,15 +979,27 @@ extension _ModalsPlaylistUI on _MainScreenState {
                       predefinedTargetPlaylist: title,
                     );
                   }),
-                  _buildOptionItem(Icons.edit, 'Rename playlist', () {
-                    Navigator.pop(context);
-                    _showRenamePlaylistModal(context, title);
-                  }),
                   _buildOptionItem(
-                    Icons.delete_outline,
-                    'Delete playlist',
+                    Icons.edit,
+                    FlowStrings.get('rename_playlist'),
                     () {
                       Navigator.pop(context);
+                      _showRenamePlaylistModal(context, title);
+                    },
+                  ),
+                  _buildOptionItem(
+                    Icons.delete_outline,
+                    FlowStrings.get('delete_playlist'),
+                    () async {
+                      Navigator.pop(context);
+                      final bool? confirm = await showConfirmationDialog(
+                        this.context,
+                        title: FlowStrings.get('confirm_delete'),
+                        content: FlowStrings.get('confirm_delete_playlist'),
+                        confirmText: FlowStrings.get('delete'),
+                      );
+                      if (confirm != true) return;
+
                       setState(() {
                         _userPlaylists.remove(title);
                         _playlistCovers.remove(title);
@@ -942,7 +1009,7 @@ extension _ModalsPlaylistUI on _MainScreenState {
                         }
                       });
                       _saveUserPlaylists();
-                      showFlowToast("Playlist deleted");
+                      showFlowToast(FlowStrings.get('playlist_deleted'));
                     },
                     iconColor: Colors.redAccent,
                   ),

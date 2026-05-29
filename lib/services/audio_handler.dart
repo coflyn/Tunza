@@ -123,6 +123,7 @@ class MyAudioHandler extends BaseAudioHandler {
         MediaAction.skipToNext,
         MediaAction.skipToPrevious,
       },
+
       androidCompactActionIndices: const [0, 1, 2],
       processingState:
           const {

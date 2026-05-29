@@ -128,7 +128,7 @@ extension _ModalsUtilityUI on _MainScreenState {
                     height: 300,
                     child: Center(
                       child: Text(
-                        'No music folders found',
+                        FlowStrings.get('no_music_folders'),
                         style: TextStyle(
                           color: isLight ? Colors.black45 : Colors.white30,
                           fontSize: 14,
@@ -190,7 +190,7 @@ extension _ModalsUtilityUI on _MainScreenState {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            'Specific Folder Scan',
+                            FlowStrings.get('specific_folder_scan'),
                             style: TextStyle(
                               color: isLight
                                   ? const Color(0xFF1A1A1A)
@@ -218,7 +218,7 @@ extension _ModalsUtilityUI on _MainScreenState {
                                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               ),
                               child: Text(
-                                'Reset Filter',
+                                FlowStrings.get('reset_filter'),
                                 style: TextStyle(
                                   color: _activeAccentColor,
                                   fontWeight: FontWeight.w600,
@@ -231,7 +231,7 @@ extension _ModalsUtilityUI on _MainScreenState {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Select which folders to display in your library. Unselected folders will be hidden.',
+                        FlowStrings.get('folder_scan_desc'),
                         style: TextStyle(
                           color: isLight ? Colors.black54 : Colors.white54,
                           fontSize: 12,
@@ -286,7 +286,7 @@ extension _ModalsUtilityUI on _MainScreenState {
                                     Expanded(
                                       child: Text(
                                         folderName.isEmpty
-                                            ? 'Root'
+                                            ? FlowStrings.get('folder_root')
                                             : folderName,
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
@@ -444,7 +444,7 @@ class _EqualizerSheetContentState extends State<_EqualizerSheetContent> {
   List<int> _frequencies = [];
   List<int> _levels = [];
   String? _error;
-  String _activePreset = 'Custom';
+  String _activePreset = FlowStrings.get('custom_time');
 
   final Map<String, List<int>> _presets = {
     'Flat': [0, 0, 0, 0, 0],
@@ -470,7 +470,7 @@ class _EqualizerSheetContentState extends State<_EqualizerSheetContent> {
     final sessionId = widget.player.androidAudioSessionId ?? 0;
     if (sessionId == 0) {
       setState(() {
-        _error = "Play a song first to initialize the Equalizer!";
+        _error = FlowStrings.get('eq_error_play_first');
         _initialized = true;
       });
       return;
@@ -507,13 +507,15 @@ class _EqualizerSheetContentState extends State<_EqualizerSheetContent> {
           _enabled =
               prefs.getBool('saved_eq_enabled') ?? res['enabled'] as bool;
           _channel.invokeMethod('setEqualizerEnabled', {'enable': _enabled});
-          _activePreset = prefs.getString('saved_eq_preset') ?? 'Custom';
+          _activePreset =
+              prefs.getString('saved_eq_preset') ??
+              FlowStrings.get('custom_time');
           _initialized = true;
         });
       }
     } catch (e) {
       setState(() {
-        _error = "Equalizer is not supported on this device";
+        _error = FlowStrings.get('eq_error_unsupported');
         _initialized = true;
       });
     }
@@ -523,7 +525,7 @@ class _EqualizerSheetContentState extends State<_EqualizerSheetContent> {
     if (!_enabled) return;
     setState(() {
       _levels[band] = value;
-      _activePreset = 'Custom';
+      _activePreset = FlowStrings.get('custom_time');
     });
     try {
       await _channel.invokeMethod('setBandLevel', {
@@ -532,7 +534,7 @@ class _EqualizerSheetContentState extends State<_EqualizerSheetContent> {
       });
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('saved_eq_levels', jsonEncode(_levels));
-      await prefs.setString('saved_eq_preset', 'Custom');
+      await prefs.setString('saved_eq_preset', FlowStrings.get('custom_time'));
     } catch (_) {}
   }
 
@@ -616,7 +618,7 @@ class _EqualizerSheetContentState extends State<_EqualizerSheetContent> {
               ),
               const SizedBox(height: 16),
               Text(
-                'System Equalizer',
+                FlowStrings.get('system_equalizer'),
                 style: textStyle.copyWith(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
@@ -662,7 +664,7 @@ class _EqualizerSheetContentState extends State<_EqualizerSheetContent> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'System Equalizer',
+                      FlowStrings.get('system_equalizer'),
                       style: textStyle.copyWith(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
@@ -671,7 +673,7 @@ class _EqualizerSheetContentState extends State<_EqualizerSheetContent> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Sculpt your sound waves in real-time',
+                      FlowStrings.get('equalizer_subtitle'),
                       style: textStyle.copyWith(
                         fontSize: 12,
                         color: Colors.white38,

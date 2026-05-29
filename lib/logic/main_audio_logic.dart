@@ -1,4 +1,4 @@
-// ignore_for_file: invalid_use_of_protected_member
+// ignore_for_file: invalid_use_of_protected_member, deprecated_member_use
 part of '../main.dart';
 
 extension _MainAudioLogic on _MainScreenState {
@@ -18,6 +18,8 @@ extension _MainAudioLogic on _MainScreenState {
       fontScaleNotifier.value = _fontScale;
       _specificFolderScan = prefs.getString('specificFolderScan') ?? '';
       _skipSilence = prefs.getBool('skipSilence') ?? false;
+      final savedLang = prefs.getString('language') ?? 'en';
+      languageNotifier.value = savedLang;
       _stopOnLowBattery = prefs.getBool('stopOnLowBattery') ?? false;
       _monoAudio = prefs.getBool('monoAudio') ?? false;
       _sortBy = prefs.getString('sortBy') ?? 'date';
@@ -134,7 +136,7 @@ extension _MainAudioLogic on _MainScreenState {
       _metadataOverrides.clear();
       _playlistCovers.clear();
     });
-    showFlowToast("App data has been reset.");
+    showFlowToast(FlowStrings.get('toast_app_data_reset'));
     _loadSettings();
   }
 
@@ -513,7 +515,10 @@ extension _MainAudioLogic on _MainScreenState {
                     : 'content://media/external/audio/media/${song.id}';
 
                 String title = song.title;
-                String artist = song.artist ?? 'Unknown Artist';
+                String artist =
+                    (song.artist == null || song.artist == '<unknown>')
+                    ? FlowStrings.get('unknown_artist')
+                    : song.artist!;
                 String album = song.album ?? 'Unknown Album';
 
                 if (_metadataOverrides.containsKey(song.id.toString())) {
@@ -583,6 +588,10 @@ extension _MainAudioLogic on _MainScreenState {
 
         if (_allTracks.isNotEmpty) {
           _playbackQueue = List.from(_allTracks);
+          ArtworkCacheManager.preloadAllArtworks(
+            _allTracks,
+            _metadataOverrides,
+          );
         }
       }
     } catch (e) {
@@ -600,7 +609,6 @@ extension _MainAudioLogic on _MainScreenState {
       _animatedPlaylistIds.clear();
       _animatedArtistIds.clear();
       _animatedAlbumIds.clear();
-      _animatedDetailTrackIds.clear();
     });
   }
 
@@ -701,8 +709,10 @@ extension _MainAudioLogic on _MainScreenState {
               title: nextTrack.title.trim().isEmpty
                   ? 'Unknown Title'
                   : nextTrack.title,
-              artist: nextTrack.artist.trim().isEmpty
-                  ? 'Unknown Artist'
+              artist:
+                  (nextTrack.artist.trim().isEmpty ||
+                      nextTrack.artist == '<unknown>')
+                  ? FlowStrings.get('unknown_artist')
                   : nextTrack.artist,
               artUri: nextCover,
               duration: Duration(milliseconds: nextTrack.duration),
@@ -827,6 +837,7 @@ extension _MainAudioLogic on _MainScreenState {
     bool playImmediately = true,
     List<Track>? sourceList,
   }) async {
+    final int requestId = ++_playRequestId;
     final listToPlay = sourceList ?? _playbackQueue;
     if (listToPlay.isEmpty || index < 0 || index >= listToPlay.length) return;
 
@@ -887,6 +898,7 @@ extension _MainAudioLogic on _MainScreenState {
           ? Uri.file(track.url)
           : (Uri.tryParse(track.url) ?? Uri.parse(''));
       final currentCover = await _getCoverUriForTrack(track);
+      if (requestId != _playRequestId) return;
 
       final currentSource = AudioSource.uri(
         currentUri,
@@ -894,7 +906,9 @@ extension _MainAudioLogic on _MainScreenState {
           id: track.id,
           album: track.album.trim().isEmpty ? 'Unknown Album' : track.album,
           title: track.title.trim().isEmpty ? 'Unknown Title' : track.title,
-          artist: track.artist.trim().isEmpty ? 'Unknown Artist' : track.artist,
+          artist: (track.artist.trim().isEmpty || track.artist == '<unknown>')
+              ? FlowStrings.get('unknown_artist')
+              : track.artist,
           artUri: currentCover,
           duration: Duration(milliseconds: track.duration),
         ),
@@ -944,6 +958,7 @@ extension _MainAudioLogic on _MainScreenState {
               ? Uri.file(prevTrack.url)
               : (Uri.tryParse(prevTrack.url) ?? Uri.parse(''));
           final prevCover = await _getCoverUriForTrack(prevTrack);
+          if (requestId != _playRequestId) return;
           children.add(
             AudioSource.uri(
               prevUri,
@@ -955,8 +970,10 @@ extension _MainAudioLogic on _MainScreenState {
                 title: prevTrack.title.trim().isEmpty
                     ? 'Unknown Title'
                     : prevTrack.title,
-                artist: prevTrack.artist.trim().isEmpty
-                    ? 'Unknown Artist'
+                artist:
+                    (prevTrack.artist.trim().isEmpty ||
+                        prevTrack.artist == '<unknown>')
+                    ? FlowStrings.get('unknown_artist')
                     : prevTrack.artist,
                 artUri: prevCover,
                 duration: Duration(milliseconds: prevTrack.duration),
@@ -976,6 +993,7 @@ extension _MainAudioLogic on _MainScreenState {
               ? Uri.file(nextTrack.url)
               : (Uri.tryParse(nextTrack.url) ?? Uri.parse(''));
           final nextCover = await _getCoverUriForTrack(nextTrack);
+          if (requestId != _playRequestId) return;
           children.add(
             AudioSource.uri(
               nextUri,
@@ -987,8 +1005,10 @@ extension _MainAudioLogic on _MainScreenState {
                 title: nextTrack.title.trim().isEmpty
                     ? 'Unknown Title'
                     : nextTrack.title,
-                artist: nextTrack.artist.trim().isEmpty
-                    ? 'Unknown Artist'
+                artist:
+                    (nextTrack.artist.trim().isEmpty ||
+                        nextTrack.artist == '<unknown>')
+                    ? FlowStrings.get('unknown_artist')
                     : nextTrack.artist,
                 artUri: nextCover,
                 duration: Duration(milliseconds: nextTrack.duration),
@@ -1072,7 +1092,9 @@ extension _MainAudioLogic on _MainScreenState {
         }
       });
     } finally {
-      _isProgrammaticLoading = false;
+      if (requestId == _playRequestId) {
+        _isProgrammaticLoading = false;
+      }
     }
   }
 
@@ -1144,8 +1166,10 @@ extension _MainAudioLogic on _MainScreenState {
               title: prevTrack.title.trim().isEmpty
                   ? 'Unknown Title'
                   : prevTrack.title,
-              artist: prevTrack.artist.trim().isEmpty
-                  ? 'Unknown Artist'
+              artist:
+                  (prevTrack.artist.trim().isEmpty ||
+                      prevTrack.artist == '<unknown>')
+                  ? FlowStrings.get('unknown_artist')
                   : prevTrack.artist,
               artUri: prevCover,
               duration: Duration(milliseconds: prevTrack.duration),
@@ -1171,8 +1195,10 @@ extension _MainAudioLogic on _MainScreenState {
               title: nextTrack.title.trim().isEmpty
                   ? 'Unknown Title'
                   : nextTrack.title,
-              artist: nextTrack.artist.trim().isEmpty
-                  ? 'Unknown Artist'
+              artist:
+                  (nextTrack.artist.trim().isEmpty ||
+                      nextTrack.artist == '<unknown>')
+                  ? FlowStrings.get('unknown_artist')
                   : nextTrack.artist,
               artUri: nextCover,
               duration: Duration(milliseconds: nextTrack.duration),
@@ -1282,8 +1308,10 @@ extension _MainAudioLogic on _MainScreenState {
                   title: nextTrack.title.trim().isEmpty
                       ? 'Unknown Title'
                       : nextTrack.title,
-                  artist: nextTrack.artist.trim().isEmpty
-                      ? 'Unknown Artist'
+                  artist:
+                      (nextTrack.artist.trim().isEmpty ||
+                          nextTrack.artist == '<unknown>')
+                      ? FlowStrings.get('unknown_artist')
                       : nextTrack.artist,
                   artUri: nextCover,
                   duration: Duration(milliseconds: nextTrack.duration),
@@ -1314,8 +1342,10 @@ extension _MainAudioLogic on _MainScreenState {
                   title: prevTrack.title.trim().isEmpty
                       ? 'Unknown Title'
                       : prevTrack.title,
-                  artist: prevTrack.artist.trim().isEmpty
-                      ? 'Unknown Artist'
+                  artist:
+                      (prevTrack.artist.trim().isEmpty ||
+                          prevTrack.artist == '<unknown>')
+                      ? FlowStrings.get('unknown_artist')
                       : prevTrack.artist,
                   artUri: prevCover,
                   duration: Duration(milliseconds: prevTrack.duration),
@@ -1457,8 +1487,9 @@ extension _MainAudioLogic on _MainScreenState {
 
     try {
       final cleanTitle = track.title;
-      final cleanArtist = track.artist.trim().isEmpty
-          ? 'Unknown Artist'
+      final cleanArtist =
+          (track.artist.trim().isEmpty || track.artist == '<unknown>')
+          ? FlowStrings.get('unknown_artist')
           : track.artist;
 
       final client = HttpClient();
